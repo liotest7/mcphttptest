@@ -1,6 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 import logging
-mcp = FastMCP("server",port=8000,host="0.0.0.0")
+mcp = FastMCP("server",port=8000,host="0.0.0.0",stateless_http=True)
 logging.basicConfig(level=logging.DEBUG)
 
 @mcp.tool()
