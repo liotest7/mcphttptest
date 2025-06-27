@@ -9,11 +9,12 @@ def greeting(name: str) -> str:
     return f"Hi {name}"
 
 @mcp.tool()
-def get_known_ui_templates() -> list:
+def get_known_ui_templates() -> dict:
     """
     Returns a list of known UI templates.
     """
-    return [
+    return {
+        "templates": [
         "Button",
         "Text",
         "Image",
@@ -28,7 +29,7 @@ def get_known_ui_templates() -> list:
         "iPhone 16",
         "Desktop",
         "iPad Pro 11"
-    ]
+    ]}
 
 @mcp.tool()
 def get_ui_templates(template_names: list) -> list:
