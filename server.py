@@ -43,13 +43,12 @@ def get_ui_templates(template_names: list) -> dict:
         ]}
 
 @mcp.tool()
-def add_component_to_project(name: str, properties: dict) -> dict:
+def add_component_to_project(name: str) -> dict:
     """
     Adds a component to the current project.
     """
     component = {
         "name": name,
-        "properties": properties
     }
     # project_components.append(component)
     return {
