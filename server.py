@@ -4,10 +4,6 @@ import logging
 mcp = FastMCP("server",port=8000,host="0.0.0.0",stateless_http=True)
 logging.basicConfig(level=logging.DEBUG)
 baseUrl = "https://plugins.ninjamock.com"
-@mcp.tool()
-def greeting(name: str) -> str:
-    "Send a greeting"
-    return f"Hi {name}"
 
 @mcp.tool()
 def list_available_ui_templates() -> dict:
@@ -63,20 +59,20 @@ def search_ui_templates_by_name(name: str) -> dict:
             "templates": [],
             "error": str(e)
         }
-@mcp.tool()
-def add_component_to_project(name: str) -> dict:
-    """
-    Adds a component to the current project.
-    """
-    component = {
-        "name": name,
-    }
-    # project_components.append(component)
-    return {
-        "status": "success",
-        "message": f"Componente '{name}' añadido al proyecto.",
-        "component": component
-    }
+# @mcp.tool()
+# def add_component_to_project(name: str) -> dict:
+#     """
+#     Adds a component to the current project.
+#     """
+#     component = {
+#         "name": name,
+#     }
+#     # project_components.append(component)
+#     return {
+#         "status": "success",
+#         "message": f"Componente '{name}' añadido al proyecto.",
+#         "component": component
+#     }
 
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")
