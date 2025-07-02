@@ -24,11 +24,12 @@ baseUrl = "https://plugins.ninjamock.com"
 #             "error": str(e)
 #         }
 @mcp.tool()
-def get_ui_template_by_id(template_id: str) -> dict:
+def get_reference_ui_template_by_id(template_id: str) -> dict:
     """
-    Retrieves the full data of a UI template from the Ninjamock tool by its ID.
-    Use this to get the complete JSON definition of a specific template, since the list endpoint only provides metadata.
-    Returns a dictionary with the template data or an error message.
+    Retrieves a reference UI template from the Ninjamock template library by its ID.
+    Use this to get template examples and context for creating new templates, not for modifying the current project.
+    These are static reference templates that can be used as inspiration or starting points.
+    Returns a dictionary with the reference template data or an error message.
     """
     api_url = f"{baseUrl}/api/v1/ui_templates/{template_id}"  
     try:
@@ -43,11 +44,12 @@ def get_ui_template_by_id(template_id: str) -> dict:
             "error": str(e)
         }
 @mcp.tool()
-def search_ui_templates_by_name(name: str) -> dict:
+def search_reference_ui_templates_by_name(name: str) -> dict:
     """
-    Searches for UI templates in the Ninjamock tool by name.
-    Use this to find templates that match a given name or keyword.
-    Returns a dictionary with a 'templates' property containing an array of matching template objects.
+    Searches for reference UI templates in the Ninjamock template library by name.
+    Use this to find reference templates that can be used as inspiration or starting points for creating new templates.
+    These are static reference templates, not part of the current project.
+    Returns a dictionary with a 'reference_templates' property containing an array of matching template objects.
     """
     api_url = f"{baseUrl}/api/v1/ui_templates/search"  
     try:
@@ -63,11 +65,12 @@ def search_ui_templates_by_name(name: str) -> dict:
         }
     
 @mcp.tool()
-def get_multiple_templates_by_names(template_names: list) -> dict:
+def get_multiple_reference_templates_by_names(template_names: list) -> dict:
     """
-    Retrieves multiple UI templates from the Ninjamock tool by their names.
-    Searches for each template name and returns the complete data for all found templates.
-    Returns a dictionary with a 'templates' property containing an array of template objects.
+    Retrieves multiple reference UI templates from the Ninjamock template library by their names.
+    Use this to get multiple reference templates that can be used as inspiration or starting points.
+    These are static reference templates, not part of the current project.
+    Returns a dictionary with a 'reference_templates' property containing an array of template objects.
     """
     all_templates = []
     errors = []
