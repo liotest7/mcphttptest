@@ -23,26 +23,26 @@ baseUrl = "https://plugins.ninjamock.com"
 #             "templates": [],
 #             "error": str(e)
 #         }
-@mcp.tool()
-def get_reference_ui_template_by_id(template_id: str) -> dict:
-    """
-    Retrieves a reference UI template from the Ninjamock template library by its ID.
-    Use this to get template examples and context for creating new templates, not for modifying the current project.
-    These are static reference templates that can be used as inspiration or starting points.
-    Returns a dictionary with the reference template data or an error message.
-    """
-    api_url = f"{baseUrl}/api/v1/ui_templates/{template_id}"  
-    try:
-        response = requests.get(api_url, timeout=5)
-        response.raise_for_status()
-        template_data = response.json()  
-        # json_data = template_data.get("jsonData") if template_data else None
-        return {"template": template_data}
-    except Exception as e:
-        return {
-            "template": None,
-            "error": str(e)
-        }
+# @mcp.tool()
+# def get_reference_ui_template_by_id(template_id: str) -> dict:
+#     """
+#     Retrieves a reference UI template from the Ninjamock template library by its ID.
+#     Use this to get template examples and context for creating new templates, not for modifying the current project.
+#     These are static reference templates that can be used as inspiration or starting points.
+#     Returns a dictionary with the reference template data or an error message.
+#     """
+#     api_url = f"{baseUrl}/api/v1/ui_templates/{template_id}"  
+#     try:
+#         response = requests.get(api_url, timeout=5)
+#         response.raise_for_status()
+#         template_data = response.json()  
+#         # json_data = template_data.get("jsonData") if template_data else None
+#         return {"template": template_data}
+#     except Exception as e:
+#         return {
+#             "template": None,
+#             "error": str(e)
+#         }
 @mcp.tool()
 def search_reference_ui_templates_by_name(name: str) -> dict:
     """
@@ -64,38 +64,38 @@ def search_reference_ui_templates_by_name(name: str) -> dict:
             "error": str(e)
         }
     
-@mcp.tool()
-def get_multiple_reference_templates_by_names(template_names: list) -> dict:
-    """
-    Retrieves multiple reference UI templates from the Ninjamock template library by their names.
-    Use this to get multiple reference templates that can be used as inspiration or starting points.
-    These are static reference templates, not part of the current project.
-    Returns a dictionary with a 'reference_templates' property containing an array of template objects.
-    """
-    all_templates = []
-    errors = []
+# @mcp.tool()
+# def get_multiple_reference_templates_by_names(template_names: list) -> dict:
+#     """
+#     Retrieves multiple reference UI templates from the Ninjamock template library by their names.
+#     Use this to get multiple reference templates that can be used as inspiration or starting points.
+#     These are static reference templates, not part of the current project.
+#     Returns a dictionary with a 'reference_templates' property containing an array of template objects.
+#     """
+#     all_templates = []
+#     errors = []
     
-    for name in template_names:
-        try:
-            # First search for templates by name
-            search_url = f"{baseUrl}/api/v1/ui_templates/search"
-            search_response = requests.get(search_url, params={"name": name}, timeout=5)
-            search_response.raise_for_status()
-            search_results = search_response.json()
-            # Extract JsonData from each template in the array
-            for template in search_results:
-                if template.get("JsonData"):
-                    all_templates.append(template.get("JsonData"))
+#     for name in template_names:
+#         try:
+#             # First search for templates by name
+#             search_url = f"{baseUrl}/api/v1/ui_templates/search"
+#             search_response = requests.get(search_url, params={"name": name}, timeout=5)
+#             search_response.raise_for_status()
+#             search_results = search_response.json()
+#             # Extract JsonData from each template in the array
+#             for template in search_results:
+#                 if template.get("JsonData"):
+#                     all_templates.append(template.get("JsonData"))
             
-        except Exception as e:
-            errors.append(f"Error fetching template '{name}': {str(e)}")
+#         except Exception as e:
+#             errors.append(f"Error fetching template '{name}': {str(e)}")
     
-    return {
-        "templates": all_templates,
-        "errors": errors if errors else None,
-        "total_found": len(all_templates),
-        "template_names": template_names
-    }
+#     return {
+#         "templates": all_templates,
+#         "errors": errors if errors else None,
+#         "total_found": len(all_templates),
+#         "template_names": template_names
+#     }
 # @mcp.tool()
 # def add_component_to_project(name: str) -> dict:
 #     """
