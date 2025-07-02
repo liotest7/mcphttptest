@@ -78,6 +78,7 @@ def get_multiple_templates_by_names(template_names: list) -> dict:
             search_response = requests.get(search_url, params={"name": name}, timeout=5)
             search_response.raise_for_status()
             search_results = search_response.json()
+            # Extract JsonData from each template in the array
             for template in search_results:
                 if template.get("JsonData"):
                     all_templates.append(template.get("JsonData"))
