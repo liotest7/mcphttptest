@@ -61,6 +61,7 @@ def search_ui_templates_by_name(name: str) -> dict:
             "templates": [],
             "error": str(e)
         }
+    
 @mcp.tool()
 def get_multiple_templates_by_names(template_names: list) -> dict:
     """
@@ -89,7 +90,8 @@ def get_multiple_templates_by_names(template_names: list) -> dict:
     return {
         "templates": all_templates,
         "errors": errors if errors else None,
-        "total_found": len(all_templates)
+        "total_found": len(all_templates),
+        "template_names": template_names
     }
 # @mcp.tool()
 # def add_component_to_project(name: str) -> dict:
