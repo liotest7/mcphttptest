@@ -54,8 +54,8 @@ def search_ui_templates_by_name(name: str) -> dict:
         response = requests.get(api_url, params={"name": name}, timeout=5)
         response.raise_for_status()
         templates = response.json()
-        json_templates = [template.get("JsonData") for template in templates if template.get("JsonData")]
-        return {"templates": json_templates}
+        # json_templates = [template.get("JsonData") for template in templates if template.get("JsonData")]
+        return {"templates": templates}
     except Exception as e:
         return {
             "templates": [],
