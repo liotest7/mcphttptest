@@ -5,24 +5,24 @@ mcp = FastMCP("server",port=8000,host="0.0.0.0",stateless_http=True)
 logging.basicConfig(level=logging.DEBUG)
 baseUrl = "https://plugins.ninjamock.com"
 
-@mcp.tool()
-def list_available_ui_templates() -> dict:
-    """
-    Retrieves all available UI templates from the Ninjamock tool.
-    Use this to get context about which templates can be used or created in the application.
-    Returns a dictionary with a 'templates' property containing an array of template objects.
-    """
-    api_url = f"{baseUrl}/api/v1/ui_templates"  
-    try:
-        response = requests.get(api_url, timeout=5)
-        response.raise_for_status()
-        templates = response.json()  
-        return {"templates": templates}
-    except Exception as e:
-        return {
-            "templates": [],
-            "error": str(e)
-        }
+# @mcp.tool()
+# def list_available_ui_templates() -> dict:
+#     """
+#     Retrieves all available UI templates from the Ninjamock tool.
+#     Use this to get context about which templates can be used or created in the application.
+#     Returns a dictionary with a 'templates' property containing an array of template objects.
+#     """
+#     api_url = f"{baseUrl}/api/v1/ui_templates"  
+#     try:
+#         response = requests.get(api_url, timeout=5)
+#         response.raise_for_status()
+#         templates = response.json()  
+#         return {"templates": templates}
+#     except Exception as e:
+#         return {
+#             "templates": [],
+#             "error": str(e)
+#         }
 @mcp.tool()
 def get_ui_template_by_id(template_id: str) -> dict:
     """
@@ -35,7 +35,8 @@ def get_ui_template_by_id(template_id: str) -> dict:
         response = requests.get(api_url, timeout=5)
         response.raise_for_status()
         template_data = response.json()  
-        return {"template": template_data}
+        json_data = template_data.get("jsonData") if template_data else None
+        return {"template": json_data}
     except Exception as e:
         return {
             "template": None,
@@ -53,7 +54,8 @@ def search_ui_templates_by_name(name: str) -> dict:
         response = requests.get(api_url, params={"name": name}, timeout=5)
         response.raise_for_status()
         templates = response.json()
-        return {"templates": templates}
+        json_templates = [template.get("jsonData") for template in templates if template.get("jsonData")]
+        return {"templates": json_templates}
     except Exception as e:
         return {
             "templates": [],
@@ -76,16 +78,9 @@ def get_multiple_templates_by_names(template_names: list) -> dict:
             search_response = requests.get(search_url, params={"name": name}, timeout=5)
             search_response.raise_for_status()
             search_results = search_response.json()
-            all_templates.append(search_results)
-            # Get full data for each found template
-            # if search_results:
-            #     for template_meta in search_results:
-            #         if 'id' in template_meta:
-            #             detail_url = f"{baseUrl}/api/v1/ui_templates/{template_meta['id']}"
-            #             detail_response = requests.get(detail_url, timeout=5)
-            #             detail_response.raise_for_status()
-            #             template_data = detail_response.json()
-            #             all_templates.append(template_data)
+            for template in search_results:
+                if template.get("jsonData"):
+                    all_templates.append(template.get("jsonData"))
             
         except Exception as e:
             errors.append(f"Error fetching template '{name}': {str(e)}")
