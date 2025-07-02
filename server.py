@@ -35,8 +35,8 @@ def get_ui_template_by_id(template_id: str) -> dict:
         response = requests.get(api_url, timeout=5)
         response.raise_for_status()
         template_data = response.json()  
-        json_data = template_data.get("jsonData") if template_data else None
-        return {"template": json_data}
+        # json_data = template_data.get("jsonData") if template_data else None
+        return {"template": template_data}
     except Exception as e:
         return {
             "template": None,
@@ -54,7 +54,7 @@ def search_ui_templates_by_name(name: str) -> dict:
         response = requests.get(api_url, params={"name": name}, timeout=5)
         response.raise_for_status()
         templates = response.json()
-        json_templates = [template.get("jsonData") for template in templates if template.get("jsonData")]
+        json_templates = [template.get("JsonData") for template in templates if template.get("JsonData")]
         return {"templates": json_templates}
     except Exception as e:
         return {
@@ -79,8 +79,8 @@ def get_multiple_templates_by_names(template_names: list) -> dict:
             search_response.raise_for_status()
             search_results = search_response.json()
             for template in search_results:
-                if template.get("jsonData"):
-                    all_templates.append(template.get("jsonData"))
+                if template.get("JsonData"):
+                    all_templates.append(template.get("JsonData"))
             
         except Exception as e:
             errors.append(f"Error fetching template '{name}': {str(e)}")
