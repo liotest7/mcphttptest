@@ -12,11 +12,11 @@ def list_available_ui_templates() -> dict:
     Use this to get context about which templates can be used or created in the application.
     Returns a dictionary with a 'templates' property containing an array of template objects.
     """
-    api_url = f"{baseUrl}/api/v1/ui_templates"  # Change to your actual API endpoint
+    api_url = f"{baseUrl}/api/v1/ui_templates"  
     try:
         response = requests.get(api_url, timeout=5)
         response.raise_for_status()
-        templates = response.json()  # Expecting a list of template objects
+        templates = response.json()  
         return {"templates": templates}
     except Exception as e:
         return {
@@ -30,11 +30,11 @@ def get_ui_template_by_id(template_id: str) -> dict:
     Use this to get the complete JSON definition of a specific template, since the list endpoint only provides metadata.
     Returns a dictionary with the template data or an error message.
     """
-    api_url = f"{baseUrl}/api/v1/ui_templates/{template_id}"  # Change to your actual API endpoint
+    api_url = f"{baseUrl}/api/v1/ui_templates/{template_id}"  
     try:
         response = requests.get(api_url, timeout=5)
         response.raise_for_status()
-        template_data = response.json()  # Expecting the full template object
+        template_data = response.json()  
         return {"template": template_data}
     except Exception as e:
         return {
@@ -48,17 +48,53 @@ def search_ui_templates_by_name(name: str) -> dict:
     Use this to find templates that match a given name or keyword.
     Returns a dictionary with a 'templates' property containing an array of matching template objects.
     """
-    api_url = f"{baseUrl}/api/v1/ui_templates/search"  # Change to your actual API endpoint
+    api_url = f"{baseUrl}/api/v1/ui_templates/search"  
     try:
         response = requests.get(api_url, params={"name": name}, timeout=5)
         response.raise_for_status()
-        templates = response.json()  # Expecting a list of template objects
+        templates = response.json()
         return {"templates": templates}
     except Exception as e:
         return {
             "templates": [],
             "error": str(e)
         }
+@mcp.tool()
+def get_multiple_templates_by_names(template_names: list) -> dict:
+    """
+    Retrieves multiple UI templates from the Ninjamock tool by their names.
+    Searches for each template name and returns the complete data for all found templates.
+    Returns a dictionary with a 'templates' property containing an array of template objects.
+    """
+    all_templates = []
+    errors = []
+    
+    for name in template_names:
+        try:
+            # First search for templates by name
+            search_url = f"{baseUrl}/api/v1/ui_templates/search"
+            search_response = requests.get(search_url, params={"name": name}, timeout=5)
+            search_response.raise_for_status()
+            search_results = search_response.json()
+            all_templates.append(search_results)
+            # Get full data for each found template
+            # if search_results:
+            #     for template_meta in search_results:
+            #         if 'id' in template_meta:
+            #             detail_url = f"{baseUrl}/api/v1/ui_templates/{template_meta['id']}"
+            #             detail_response = requests.get(detail_url, timeout=5)
+            #             detail_response.raise_for_status()
+            #             template_data = detail_response.json()
+            #             all_templates.append(template_data)
+            
+        except Exception as e:
+            errors.append(f"Error fetching template '{name}': {str(e)}")
+    
+    return {
+        "templates": all_templates,
+        "errors": errors if errors else None,
+        "total_found": len(all_templates)
+    }
 # @mcp.tool()
 # def add_component_to_project(name: str) -> dict:
 #     """
