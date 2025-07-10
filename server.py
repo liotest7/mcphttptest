@@ -1,6 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 import requests
 import logging
+from rag_qa import get_context_from_query
 mcp = FastMCP("server",port=8000,host="0.0.0.0",stateless_http=True)
 logging.basicConfig(level=logging.DEBUG)
 baseUrl = "https://plugins.ninjamock.com"
@@ -42,7 +43,25 @@ baseUrl = "https://plugins.ninjamock.com"
 #         return {
 #             "template": None,
 #             "error": str(e)
-#         }
+#         }  
+@mcp.tool()
+def search_ninjamock_docs(query: str) -> dict:
+    """
+    Searches the Ninjamock documentation for a specific query.
+    """
+    context = get_context_from_query(query)
+    if not context:
+        return {
+            "answer": "No relevant information found in the Ninjamock documentation.",
+            "context": ""
+        }
+    # Use the context to generate an answer
+    answer = f"Based on the Ninjamock documentation, here is the information related to your query:\n\n{context}"
+    
+    return {
+        "context": answer
+    }
+
 @mcp.tool()
 def search_reference_ui_templates_by_name(name: str) -> dict:
     """
