@@ -62,26 +62,26 @@ def search_ninjamock_docs(query: str) -> dict:
         "context": answer
     }
 
-@mcp.tool()
-def search_reference_ui_templates_by_name(name: str) -> dict:
-    """
-    Searches for reference UI templates in the Ninjamock template library by name.
-    Use this to find reference templates that can be used as inspiration or starting points for creating new templates.
-    These are static reference templates, not part of the current project.
-    Returns a dictionary with a 'reference_templates' property containing an array of matching template objects.
-    """
-    api_url = f"{baseUrl}/api/v1/ui_templates/search"  
-    try:
-        response = requests.get(api_url, params={"name": name}, timeout=5)
-        response.raise_for_status()
-        templates = response.json()
-        # json_templates = [template.get("JsonData") for template in templates if template.get("JsonData")]
-        return {"templates": templates}
-    except Exception as e:
-        return {
-            "templates": [],
-            "error": str(e)
-        }
+# @mcp.tool()
+# def search_reference_ui_templates_by_name(name: str) -> dict:
+#     """
+#     Searches for reference UI templates in the Ninjamock template library by name.
+#     Use this to find reference templates that can be used as inspiration or starting points for creating new templates.
+#     These are static reference templates, not part of the current project.
+#     Returns a dictionary with a 'reference_templates' property containing an array of matching template objects.
+#     """
+#     api_url = f"{baseUrl}/api/v1/ui_templates/search"  
+#     try:
+#         response = requests.get(api_url, params={"name": name}, timeout=5)
+#         response.raise_for_status()
+#         templates = response.json()
+#         # json_templates = [template.get("JsonData") for template in templates if template.get("JsonData")]
+#         return {"templates": templates}
+#     except Exception as e:
+#         return {
+#             "templates": [],
+#             "error": str(e)
+#         }
     
 # @mcp.tool()
 # def get_multiple_reference_templates_by_names(template_names: list) -> dict:
