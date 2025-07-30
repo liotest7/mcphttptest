@@ -76,7 +76,7 @@ def get_ninjamock_project_full(project_id: str, mcp_ctx: Context = None) -> dict
     api_url = f"{baseUrl}/api/v1/projects/{project_id}"
     headers = _get_auth_headers()
     print(f"Fetching project {project_id} from Ninjamock API with headers: {headers}")
-    logging.info(f"Fetching project {project_id} from Ninjamock API with headers: {headers}")
+    logging.info(f"Fetching project {project_id} from Ninjamock API with headers: {headers} context: {mcp_ctx}")
     try:
         response = requests.get(api_url, headers=headers, timeout=10)
         response.raise_for_status()
