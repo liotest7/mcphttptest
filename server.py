@@ -1,6 +1,5 @@
-from mcp.server.fastmcp import FastMCP, Context
-from mcp.server.auth.provider import AccessToken
-from mcp.server.auth.middleware.auth_context import get_access_token
+from fastmcp import FastMCP,Context
+from fastmcp.server.dependencies import get_http_headers
 
 import requests
 import logging
@@ -9,49 +8,57 @@ mcp = FastMCP("server",port=8000,host="0.0.0.0",stateless_http=True)
 logging.basicConfig(level=logging.DEBUG)
 baseUrl = "https://plugins.ninjamock.com"
 
-# @mcp.tool()
-# def list_available_ui_templates() -> dict:
-#     """
-#     Retrieves all available UI templates from the Ninjamock tool.
-#     Use this to get context about which templates can be used or created in the application.
-#     Returns a dictionary with a 'templates' property containing an array of template objects.
-#     """
-#     api_url = f"{baseUrl}/api/v1/ui_templates"  
-#     try:
-#         response = requests.get(api_url, timeout=5)
-#         response.raise_for_status()
-#         templates = response.json()  
-#         return {"templates": templates}
-#     except Exception as e:
-#         return {
-#             "templates": [],
-#             "error": str(e)
-#         }
-# @mcp.tool()
-# def get_reference_ui_template_by_id(template_id: str) -> dict:
-#     """
-#     Retrieves a reference UI template from the Ninjamock template library by its ID.
-#     Use this to get template examples and context for creating new templates, not for modifying the current project.
-#     These are static reference templates that can be used as inspiration or starting points.
-#     Returns a dictionary with the reference template data or an error message.
-#     """
-#     api_url = f"{baseUrl}/api/v1/ui_templates/{template_id}"  
-#     try:
-#         response = requests.get(api_url, timeout=5)
-#         response.raise_for_status()
-#         template_data = response.json()  
-#         # json_data = template_data.get("jsonData") if template_data else None
-#         return {"template": template_data}
-#     except Exception as e:
-#         return {
-#             "template": None,
-#             "error": str(e)
-#         } 
 # # MCP tools para interactuar con la API de Ninjamock usando token en header
 def _get_auth_headers():
-    token = get_access_token()
-    return {"Authorization": token} if token else {}
+    headers = get_http_headers()
+    token = headers.get("authorization") or headers.get("x-api-key")
+    if token:
+        return {"Authorization": token}
+    return  {}
 
+    """
+    Extract headers from the current HTTP request if available.
+
+    Never raises an exception, even if there is no active HTTP request (in which case
+    an empty dict is returned).
+
+    By default, strips problematic headers like `content-length` that cause issues if forwarded to downstream clients.
+    If `include_all` is True, all headers are returned.
+    """
+    if include_all:
+        exclude_headers = set()
+    else:
+        exclude_headers = {
+            "host",
+            "content-length",
+            "connection",
+            "transfer-encoding",
+            "upgrade",
+            "te",
+            "keep-alive",
+            "expect",
+            "accept",
+            # Proxy-related headers
+            "proxy-authenticate",
+            "proxy-authorization",
+            "proxy-connection",
+            # MCP-related headers
+            "mcp-session-id",
+        }
+        # (just in case)
+        if not all(h.lower() == h for h in exclude_headers):
+            raise ValueError("Excluded headers must be lowercase")
+    headers = {}
+
+    try:
+        request = get_http_request()
+        for name, value in request.headers.items():
+            lower_name = name.lower()
+            if lower_name not in exclude_headers:
+                headers[lower_name] = str(value)
+        return headers
+    except RuntimeError:
+        return {}
 @mcp.tool()
 def get_ninjamock_project_metadata(project_id: str, mcp_ctx: Context = None) -> dict:
     """
@@ -68,15 +75,16 @@ def get_ninjamock_project_metadata(project_id: str, mcp_ctx: Context = None) -> 
         return {"metadata": None, "error": str(e)}
 
 @mcp.tool()
-def get_ninjamock_project_full(project_id: str, mcp_ctx: Context = None) -> dict:
+def get_ninjamock_project_full(project_id: str, mcp_ctx: Context) -> dict:
     """
     Retrieves the full Ninjamock project by its ID in JSON format.
     Requires authentication via token in the 'Authorization' header.
     """
     api_url = f"{baseUrl}/api/v1/projects/{project_id}"
-    headers = _get_auth_headers()
-    print(f"Fetching project {project_id} from Ninjamock API with headers: {headers}")
+
+    headers = _get_auth_headers(mcp_ctx)
     logging.info(f"Fetching project {project_id} from Ninjamock API with headers: {headers} context: {mcp_ctx}")
+    #  mcp_ctx.info(f"Fetching project {project_id} from Ninjamock API with headers: {headers} context: {mcp_ctx}")
     try:
         response = requests.get(api_url, headers=headers, timeout=10)
         response.raise_for_status()
