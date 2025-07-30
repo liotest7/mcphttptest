@@ -62,73 +62,57 @@ def search_ninjamock_docs(query: str) -> dict:
         "context": answer
     }
 
-# @mcp.tool()
-# def search_reference_ui_templates_by_name(name: str) -> dict:
-#     """
-#     Searches for reference UI templates in the Ninjamock template library by name.
-#     Use this to find reference templates that can be used as inspiration or starting points for creating new templates.
-#     These are static reference templates, not part of the current project.
-#     Returns a dictionary with a 'reference_templates' property containing an array of matching template objects.
-#     """
-#     api_url = f"{baseUrl}/api/v1/ui_templates/search"  
-#     try:
-#         response = requests.get(api_url, params={"name": name}, timeout=5)
-#         response.raise_for_status()
-#         templates = response.json()
-#         # json_templates = [template.get("JsonData") for template in templates if template.get("JsonData")]
-#         return {"templates": templates}
-#     except Exception as e:
-#         return {
-#             "templates": [],
-#             "error": str(e)
-#         }
-    
-# @mcp.tool()
-# def get_multiple_reference_templates_by_names(template_names: list) -> dict:
-#     """
-#     Retrieves multiple reference UI templates from the Ninjamock template library by their names.
-#     Use this to get multiple reference templates that can be used as inspiration or starting points.
-#     These are static reference templates, not part of the current project.
-#     Returns a dictionary with a 'reference_templates' property containing an array of template objects.
-#     """
-#     all_templates = []
-#     errors = []
-    
-#     for name in template_names:
-#         try:
-#             # First search for templates by name
-#             search_url = f"{baseUrl}/api/v1/ui_templates/search"
-#             search_response = requests.get(search_url, params={"name": name}, timeout=5)
-#             search_response.raise_for_status()
-#             search_results = search_response.json()
-#             # Extract JsonData from each template in the array
-#             for template in search_results:
-#                 if template.get("JsonData"):
-#                     all_templates.append(template.get("JsonData"))
-            
-#         except Exception as e:
-#             errors.append(f"Error fetching template '{name}': {str(e)}")
-    
-#     return {
-#         "templates": all_templates,
-#         "errors": errors if errors else None,
-#         "total_found": len(all_templates),
-#         "template_names": template_names
-#     }
-# @mcp.tool()
-# def add_component_to_project(name: str) -> dict:
-#     """
-#     Adds a component to the current project.
-#     """
-#     component = {
-#         "name": name,
-#     }
-#     # project_components.append(component)
-#     return {
-#         "status": "success",
-#         "message": f"Componente '{name}' añadido al proyecto.",
-#         "component": component
-#     }
-
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")
+
+# MCP tools para interactuar con la API de Ninjamock usando token en header
+def _get_auth_headers(mcp_ctx):
+    token = None
+    if mcp_ctx and "headers" in mcp_ctx:
+        token = mcp_ctx["headers"].get("authorization")
+    return {"Authorization": token} if token else {}
+
+@mcp.tool()
+def get_ninjamock_project_metadata(project_id: str, mcp_ctx=None) -> dict:
+    """
+    Retrieves the metadata of a Ninjamock project by its ID.
+    Requires authentication via token in the 'Authorization' header.
+    """
+    api_url = f"{baseUrl}/api/v1/projects/{project_id}/metadata"
+    headers = _get_auth_headers(mcp_ctx)
+    try:
+        response = requests.get(api_url, headers=headers, timeout=5)
+        response.raise_for_status()
+        return {"metadata": response.json()}
+    except Exception as e:
+        return {"metadata": None, "error": str(e)}
+
+@mcp.tool()
+def get_ninjamock_project_full(project_id: str, mcp_ctx=None) -> dict:
+    """
+    Retrieves the full Ninjamock project by its ID in JSON format.
+    Requires authentication via token in the 'Authorization' header.
+    """
+    api_url = f"{baseUrl}/api/v1/projects/{project_id}"
+    headers = _get_auth_headers(mcp_ctx)
+    try:
+        response = requests.get(api_url, headers=headers, timeout=10)
+        response.raise_for_status()
+        return {"project": response.json()}
+    except Exception as e:
+        return {"project": None, "error": str(e)}
+
+@mcp.tool()
+def get_ninjamock_project_element_by_id(project_id: str, element_id: str, mcp_ctx=None) -> dict:
+    """
+    Retrieves a specific element of a Ninjamock project by its ID in JSON format.
+    Requires authentication via token in the 'Authorization' header.
+    """
+    api_url = f"{baseUrl}/api/v1/projects/{project_id}/elements/{element_id}"
+    headers = _get_auth_headers(mcp_ctx)
+    try:
+        response = requests.get(api_url, headers=headers, timeout=5)
+        response.raise_for_status()
+        return {"element": response.json()}
+    except Exception as e:
+        return {"element": None, "error": str(e)}
