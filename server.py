@@ -82,7 +82,7 @@ def get_ninjamock_project_full(project_id: str, mcp_ctx: Context) -> dict:
     """
     api_url = f"{baseUrl}/api/v1/projects/{project_id}"
 
-    headers = _get_auth_headers(mcp_ctx)
+    headers = _get_auth_headers()
     logging.info(f"Fetching project {project_id} from Ninjamock API with headers: {headers} context: {mcp_ctx}")
     #  mcp_ctx.info(f"Fetching project {project_id} from Ninjamock API with headers: {headers} context: {mcp_ctx}")
     try:
