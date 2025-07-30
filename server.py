@@ -1,4 +1,7 @@
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Context, ToolError
+from mcp.server.auth.provider import AccessToken
+from mcp.server.auth.middleware.auth_context import get_access_token
+
 import requests
 import logging
 from rag_qa import get_context_from_query
@@ -45,20 +48,18 @@ baseUrl = "https://plugins.ninjamock.com"
 #             "error": str(e)
 #         } 
 # # MCP tools para interactuar con la API de Ninjamock usando token en header
-def _get_auth_headers(mcp_ctx):
-    token = None
-    if mcp_ctx and "headers" in mcp_ctx:
-        token = mcp_ctx["headers"].get("authorization")
+def _get_auth_headers():
+    token = get_access_token()
     return {"Authorization": token} if token else {}
 
 @mcp.tool()
-def get_ninjamock_project_metadata(project_id: str, mcp_ctx=None) -> dict:
+def get_ninjamock_project_metadata(project_id: str, mcp_ctx: Context = None) -> dict:
     """
     Retrieves the metadata of a Ninjamock project by its ID.
     Requires authentication via token in the 'Authorization' header.
     """
     api_url = f"{baseUrl}/api/v1/projects/{project_id}/metadata"
-    headers = _get_auth_headers(mcp_ctx)
+    headers = _get_auth_headers()
     try:
         response = requests.get(api_url, headers=headers, timeout=5)
         response.raise_for_status()
@@ -67,13 +68,13 @@ def get_ninjamock_project_metadata(project_id: str, mcp_ctx=None) -> dict:
         return {"metadata": None, "error": str(e)}
 
 @mcp.tool()
-def get_ninjamock_project_full(project_id: str, mcp_ctx=None) -> dict:
+def get_ninjamock_project_full(project_id: str, mcp_ctx: Context = None) -> dict:
     """
     Retrieves the full Ninjamock project by its ID in JSON format.
     Requires authentication via token in the 'Authorization' header.
     """
     api_url = f"{baseUrl}/api/v1/projects/{project_id}"
-    headers = _get_auth_headers(mcp_ctx)
+    headers = _get_auth_headers()
     try:
         response = requests.get(api_url, headers=headers, timeout=10)
         response.raise_for_status()
@@ -88,7 +89,7 @@ def get_ninjamock_project_element_by_id(project_id: str, element_id: str, mcp_ct
     Requires authentication via token in the 'Authorization' header.
     """
     api_url = f"{baseUrl}/api/v1/projects/{project_id}/elements/{element_id}"
-    headers = _get_auth_headers(mcp_ctx)
+    headers = _get_auth_headers()
     try:
         response = requests.get(api_url, headers=headers, timeout=5)
         response.raise_for_status()
