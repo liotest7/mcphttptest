@@ -1,4 +1,4 @@
-from mcp.server.fastmcp import FastMCP, Context, ToolError
+from mcp.server.fastmcp import FastMCP, Context
 from mcp.server.auth.provider import AccessToken
 from mcp.server.auth.middleware.auth_context import get_access_token
 
@@ -75,6 +75,8 @@ def get_ninjamock_project_full(project_id: str, mcp_ctx: Context = None) -> dict
     """
     api_url = f"{baseUrl}/api/v1/projects/{project_id}"
     headers = _get_auth_headers()
+    print(f"Fetching project {project_id} from Ninjamock API with headers: {headers}")
+    logging.info(f"Fetching project {project_id} from Ninjamock API with headers: {headers}")
     try:
         response = requests.get(api_url, headers=headers, timeout=10)
         response.raise_for_status()
