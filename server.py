@@ -43,29 +43,8 @@ baseUrl = "https://plugins.ninjamock.com"
 #         return {
 #             "template": None,
 #             "error": str(e)
-#         }  
-@mcp.tool()
-def search_ninjamock_docs(query: str) -> dict:
-    """
-    Searches the Ninjamock documentation for a specific query.
-    """
-    context = get_context_from_query(query)
-    if not context:
-        return {
-            "answer": "No relevant information found in the Ninjamock documentation.",
-            "context": ""
-        }
-    # Use the context to generate an answer
-    answer = f"Based on the Ninjamock documentation, here is the information related to your query:\n\n{context}"
-    
-    return {
-        "context": answer
-    }
-
-if __name__ == "__main__":
-    mcp.run(transport="streamable-http")
-
-# MCP tools para interactuar con la API de Ninjamock usando token en header
+#         } 
+# # MCP tools para interactuar con la API de Ninjamock usando token en header
 def _get_auth_headers(mcp_ctx):
     token = None
     if mcp_ctx and "headers" in mcp_ctx:
@@ -116,3 +95,25 @@ def get_ninjamock_project_element_by_id(project_id: str, element_id: str, mcp_ct
         return {"element": response.json()}
     except Exception as e:
         return {"element": None, "error": str(e)}
+     
+@mcp.tool()
+def search_ninjamock_docs(query: str) -> dict:
+    """
+    Searches the Ninjamock documentation for a specific query.
+    """
+    context = get_context_from_query(query)
+    if not context:
+        return {
+            "answer": "No relevant information found in the Ninjamock documentation.",
+            "context": ""
+        }
+    # Use the context to generate an answer
+    answer = f"Based on the Ninjamock documentation, here is the information related to your query:\n\n{context}"
+    
+    return {
+        "context": answer
+    }
+
+if __name__ == "__main__":
+    mcp.run(transport="streamable-http")
+
