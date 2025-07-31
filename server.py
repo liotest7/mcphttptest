@@ -1,6 +1,7 @@
+
 from fastmcp import FastMCP,Context
 from fastmcp.server.dependencies import get_http_headers
-
+from rag_search import search_rag
 import requests
 import logging
 from rag_qa import get_context_from_query
@@ -125,6 +126,38 @@ def search_ninjamock_docs(query: str) -> dict:
         "context": answer
     }
 
+@mcp.tool()
+def search_ui_templates(query: str, top_k: int = 5) -> dict:
+    """
+    Search and retrieve the most relevant UI templates for the query using RAG.
+    Returns templates that the agent can use to create new elements by templateId.
+    """
+    index_path = "indices/ui_templates/faiss_index.index"
+    metadata_path = "indices/ui_templates/metadata.json"
+    try:
+        results = search_rag(query, index_path, metadata_path, top_k=top_k)
+        if not results:
+            return {"answer": "No relevant UI templates found for the query.", "results": []}
+        # Summarize for the agent: only show key fields
+        summary = [
+            {
+                "title": r["title"],
+                "templateId": r["templateId"],
+                "type": r["type"],
+                "category": r["category"],
+                "description": r.get("text", ""),
+                "properties": r.get("properties", {}),
+                "defaultProperties": r.get("defaultProperties", {}),
+            }
+            for r in results
+        ]
+        return {
+            "answer": f"Found {len(summary)} relevant UI templates.",
+            "results": summary
+        }
+    except Exception as e:
+        return {"answer": "Error searching UI templates.", "error": str(e), "results": []}
+    
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")
 
