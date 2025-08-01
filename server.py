@@ -99,7 +99,7 @@ def get_ninjamock_project_element_by_id(project_id: str, element_id: str, mcp_ct
     Retrieves a specific element of a Ninjamock project by its ID in JSON format.
     Requires authentication via token in the 'Authorization' header.
     """
-    api_url = f"{baseUrl}/api/v1/projects/{project_id}/elements/{element_id}"
+    api_url = f"{baseUrl}/api/v1/projects/{project_id}/element/{element_id}"
     headers = _get_auth_headers()
     try:
         response = requests.get(api_url, headers=headers, timeout=5)
