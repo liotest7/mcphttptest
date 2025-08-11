@@ -157,6 +157,38 @@ def search_ui_templates(query: str, top_k: int = 5) -> dict:
         }
     except Exception as e:
         return {"answer": "Error searching UI templates.", "error": str(e), "results": []}
+
+@mcp.tool()
+def search_agent_design_context(query: str, top_k: int = 5) -> dict:
+    """
+    Retrieve authoritative design knowledge for element/template creation from agent_context.md (indexed with FAISS).
+    Use this tool whenever you need to know which templates exist, valid element types, properties, states/tokens,
+    and instantiation rules (e.g., inline vs templated-element). Treat results as the source of truth and do not invent
+    templates/types/properties that are not documented. Returns relevant chunks with metadata (section, anchor, level,
+    path, tags, part_index) and text suitable for citation.
+    """
+    index_path = "indices/agent_context/faiss_index.index"
+    metadata_path = "indices/agent_context/metadata.json"
+    try:
+        results = search_rag(query, index_path, metadata_path, top_k=top_k)
+        if not results:
+            return {"answer": "No relevant context found.", "results": []}
+        concise = [
+            {
+                "score": r.get("score"),
+                "section": r.get("section"),
+                "anchor": r.get("anchor"),
+                "level": r.get("level"),
+                "path": r.get("path"),
+                "tags": r.get("tags", []),
+                "part_index": r.get("part_index"),
+                "text": r.get("text"),
+            }
+            for r in results
+        ]
+        return {"answer": f"Found {len(concise)} relevant context chunks.", "results": concise}
+    except Exception as e:
+        return {"answer": "Error searching agent context.", "error": str(e), "results": []}
     
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")
