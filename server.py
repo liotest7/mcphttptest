@@ -189,7 +189,39 @@ def search_agent_design_context(query: str, top_k: int = 5) -> dict:
         return {"answer": f"Found {len(concise)} relevant context chunks.", "results": concise}
     except Exception as e:
         return {"answer": "Error searching agent context.", "error": str(e), "results": []}
+
+@mcp.tool()
+def prepare_design_knowledge_for_request(user_request: str) -> dict:
+    """
+    Comprehensive knowledge preparation workflow for any design request.
+    Should be called first before attempting any UI creation/modification.
+    """
+    # 1. Análisis inicial del request
+    analysis_context = search_agent_design_context(
+        f"analyze requirements for: {user_request}", top_k=5
+    )
     
+    # 2. Búsqueda de templates relevantes
+    template_context = search_ui_templates(user_request, top_k=10)
+    
+    # 3. Contexto de tipos de elementos
+    element_context = search_agent_design_context(
+        "element types properties behaviors", top_k=10
+    )
+    
+    # 4. Sistema de diseño
+    design_system_context = search_agent_design_context(
+        "design system tokens colors spacing typography", top_k=8
+    )
+    
+    return {
+        "request_analysis": analysis_context,
+        "available_templates": template_context,
+        "element_system": element_context,
+        "design_system": design_system_context,
+        "workflow_complete": True
+    }
+
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")
 
