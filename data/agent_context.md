@@ -8,215 +8,262 @@ This document summarizes the editor’s element model, common properties, behavi
 
 - Elements are represented as JSON objects that follow the project contract; each element typically includes `id`, `type`, `properties` and (optionally) `children` or `parentId`.
 - Treat elements as data records (JSON shapes). This document describes the canonical JSON contract agents should emit or modify; it does not require knowledge of internal code structure.
-- Properties are defined and managed via a `Properties` system, supporting constraints, validators, options, subscriptions (reactive reactions), and internal/hidden flags.
-- The runtime keeps internal reactive state for selection, hover, dragging, etc. Agents do not need to reference framework-specific APIs.
-
-## Element types
-
-This document references the set of runtime element types agents can create or modify. The full list below is a concise catalogue of the types the agent may use in payloads; prefer the `type` string in examples.
-
-- button, image, text, rectangle, ellipse, line, lineConnector, path, group, container, container-layout, device, workspace, selection, shape, radio, checkbox, input-text, slider, progress-bar, navbar, sidebar-web, table, carousel-web, video, icon-svg
-# Ninjamock Editor – Agent Design Context (for RAG)
-
-Scope: This document contains only the information needed for an agent that creates, modifies, deletes, and suggests UI elements. It excludes framework internals and general project architecture.
-
-Use this document as retrieval context for tool-call generation and validation.
-
-## Core concepts
-
-- Element types: the runtime supports a set of element types (see "Element types" below). Each type has a serialized `type`, `properties`, and optional `children`.
-- Serialized element: JSON form stored/applied in the project, with `type`, `properties`, and `children`.
-- Template elements (templateId): Predefined components that instantiate one element or a composition of multiple elements with preset properties/states. They’re referenced via `templateId`.
-- Container element: A general-purpose element used to group/compose other elements.
-- Bindings: Dynamic property links between elements/properties (data-driven or interactive), defined as bindings rather than static values.
-- Layout: Supports both absolute positioning and responsive (flex-like) layouts. Agents should prefer responsive containers for designs targeting multiple screen sizes, and may still use absolute positioning for pixel-precise placements.
-
-### Container strategy (single adaptable container)
-
-- The editor supports a `container-layout` (or `container`) element that can switch its layout behavior via a `layout` or `display` property. Valid values include `absolute`, `flex`, and `grid` (if supported). This lets the agent create a single container type and toggle its layout mode later to convert the subtree to a responsive layout without replacing the container node.
-
--- Recommendation: prefer using the same `container-layout` type when grouping content so the agent or user can switch between `absolute` and `flex` later. This reduces friction when adapting a design for responsive breakpoints.
--- States & tokens: Style states and design tokens to enable themeable, stateful designs aligned with HTML/CSS exports.
-
-## Centralized properties reference
-
-This section centralizes the canonical property reference used across element types. Use these canonical entries as the single source of truth for property names, types, allowed values and serialization notes. Per-type subsections later list which of these properties are commonly used by each type and any defaults or aliases.
-
-### Identity & meta
-- name: string — default: "" — human readable label for the element; serialized in `properties.name`.
-- bindingKey: string | null — unique binding identifier for data bindings (nullable).
-- templateId / meta.templateRef: string | object — references the toolbox template or template metadata; when present prefer `overrides`/`propsMode: "diff"` semantics.
-- referenceElementId: string | null — references another element for relative layout or binding.
-
-### Placement & sizing
-- position: 'absolute' | 'relative' | 'static' — default: 'absolute'.
-- left, top, right, bottom: number | null — decimal(2). When omitted, the runtime may compute layout from parent/flow.
-- width, height: number | null — decimal(2).
-- widthBehavior, heightBehavior: 'fixed' | 'hug' — default: 'fixed' unless a type overrides to 'hug' (content-driven).
-- lockAspectRatio: boolean — if true, maintain aspect ratio when resizing.
-- scale: number — default: 1.
-- rotation: number (degrees) — default: 0; allowed range typically [-360..360].
-- zIndex: number — stacking order.
-
-### Visibility & effects
-- visible: boolean — default: true.
-- opacity: number (0..100) — default: 100.
-- clip: boolean — internal: whether children are clipped to this element.
-
-### Style
-- fill, stroke: color token or color object — may accept token references.
-- strokeStyle: select — border style options (type-defined choices).
-- borderRadius: number | object — per-corner radius or shorthand.
-- strokeWidth: number — border thickness.
-- strokePosition: select — inside | center | outside (type-defined).
-- padding: Box — object with top/right/bottom/left.
-- boxShadow, innerShadow, dropShadow: object — shadow descriptors.
-- layerBlur, bgBlur: number — blur amounts.
-
-### Constraints and layout hints
-- minWidth, minHeight, maxWidth, maxHeight: number — layout constraints.
-- widthBehaviorHint / heightBehaviorHint: hint fields (optional) used by some types.
-
-### Layout-specific helpers
-- layout / display: 'absolute' | 'flex' | 'grid' — high-level layout mode for containers; the runtime may map aliases.
-- direction / flexDirection: 'horizontal'|'vertical'|'row'|'column' — aliases exist; runtime maps to concrete flex axis.
-- justifyContent, alignItems: select — start|center|end|space-between|space-around (type-defined set).
-- gap, gapX, gapY: number — spacing between children (gap shorthand with optional axis overrides).
-- spacingType: 'fixed' | 'auto' — how children size against gap rules.
-- layoutAlign: preset string — convenience presets (see `layoutAlign` list below) that set both `justifyContent` and `alignItems`.
-
-### Bindings & dynamic values
-- bindings: array/object — structured bindings between element properties; serialized as a `bindings` section when present.
-- tokens: Record<string, any> — token pointer map used to resolve theme values via `getValueFromToken`.
-
-### Hierarchy & state (serialization notes)
-- parentId: string — persisted in flat exports to attach during deserialization.
-- children: string[] — array of child ids in flat exports. Payloads may omit full child objects when they are present elsewhere in the same `elements` payload.
-
-### layoutAlign presets (quick-reference)
-- `top-left`, `top-center`, `top-right`
-- `middle-left`, `middle-center`, `middle-right`
-- `bottom-left`, `bottom-center`, `bottom-right`
-
-## Toolbox templates (catalog)
-
-| Template ID | Runtime type | Category | Title |
-|---|---|---:|---|
-| text | text | basic | Text |
-| tabbar-ios | container-layout | ios | Tabbar |
-| menu-ios | container-layout | ios | Menu |
-| status-bar-ios | container-layout | ios | Status Bar |
-| pagination-web | container-layout | web | Pagination |
-| notification-web | container-layout | web | Notification |
-| toggle-web | toggle-web | web | Toggle |
-| image | image | basic | Image |
-| video | video | basic | Video |
-| stepper-ios | container-layout | ios | Stepper |
-| slider-ios | container-layout | ios | Slider |
-| segmented-control-ios | container-layout | ios | Segmented Control |
-| text-field-android | container-layout | android | Text Field |
-| sidebar-ios | container-layout | ios | Sidebar |
-| progress-indicator-ios | container-layout | ios | Progress Indicator |
-| date-time-picker-ios | container-layout | ios | Date Time Picker |
-| alert-ios | container-layout | ios | Alert |
-| list-group-web | container-layout | web | List Group |
-| progress-bar-ios | container-layout | ios | Progress Bar Wrapper |
-| page-control-ios | container-layout | ios | Page Control |
-| navbar-ios | container-layout | ios | Navigation Bar |
-| search-bar-android | container-layout | android | Search Bar |
-| input-ios | input-ios | ios | Input iOS |
-| action-sheet-ios | container-layout | ios | Action Sheet |
-| ios-button | button-ios | ios | iOS Button |
-| tab-bar-android | container-layout | android | Tab Bar |
-| menu-android | container-layout | android | Menu |
-| slider-android | slider-android | android | Slider |
-| bottom-sheet-android | container-layout | android | Bottom Sheet |
-| toggle-android | toggle-android | android | Toggle |
-| side-sheet-android | container-layout | android | Side Sheet |
-| segmented-buttons-android | container-layout | android | Segmented Buttons |
-| progress-web | progress-bar | web | Progress Bar |
-| radio-android | radio-android | android | Radio |
-| list-android | container-layout | android | List |
-| icon-button-android | icon-button-android | android | Icon Button |
-| fab-android | fab-android | android | Fab |
-| chip-android | chip-android | android | Chip |
-| fab-extended-android | extended-fab-android | android | Fab Extended |
-| dialog-android | container-layout | android | Container Layout |
-| checkbox-android | container-layout | android | Checkbox |
-| sidebar-web | sidebar-web | web | Sidebar |
-| android-button | buttonAndroid | android | Android Button |
-| web-button | buttonWeb | web | Web Button |
-| tab-group-web | container-layout | web | Tabs |
-| radio-web | radio-web | web | Radio |
-| toggle-ios | toggle | ios | Toggle |
-| notification-ios | container-layout | ios | Container Layout |
-| input-web | container-layout | web | Input |
-| button-basic | button | basic | Button |
-| select-web | select-web | web | Select |
-| icon
 
 ## Element types (catalogue)
 
-The runtime recognizes a set of element `type` strings used in serialized payloads. Agents should use these `type` values when creating or modifying elements. Integrations may expose additional types or aliases; consult integration docs if unsure.
+The runtime recognizes a set of element `type` strings used in serialized payloads. Agents should use these `type` values when creating or modifying elements. Each type has specific capabilities and use cases in the design system.
+The available types are listed below:
 
-Common runtime types (examples):
+**button** - Interactive button element for user actions
+- Primary use: Call-to-action buttons, form submissions, navigation triggers
+- Supports: hover/active states, text content, styling
+- Best for: Primary actions, secondary actions, icon buttons
 
-- button
-- image
-- text
-- rectangle
-- ellipse
-- line
-- lineConnector
-- path
-- video
-- checkbox
-- radio
-- dropdown
-- select
-- slider
-- progress-bar
-- sidebar-web
-- navbar
-- group
-- container
-- container-layout
-- stack-layout
-- table
-- table-row
-- table-cell
-- table-section
-- device
-- workspace
-- selection
-- shape
-- radio-icon
-- checkbox-label
-- input-text
-- toggle
-- carousel-web
-- icon-svg
+**checkbox** - Boolean input control with checkmark indicator
+- Primary use: Multi-selection options, toggle settings, form inputs
+- Supports: Checked/unchecked states, labels, validation
+- Best for: Multiple choice selections, feature toggles, consent forms
 
-Note: Exact `type` strings or aliases may vary between backend integrations. When necessary, prefer the canonical type strings provided by your integration documentation.
+**radio** - Single-selection input control within a group
+- Primary use: Exclusive choice selection from multiple options
+- Supports: Selected state, grouping with other radios, labels
+- Best for: Single choice from predefined options, settings selection
+
+**dropdown** - Expandable list selection component
+- Primary use: Space-efficient selection from many options
+- Supports: Option lists, search filtering, custom styling
+- Best for: Country selection, category filters, compact option lists
+
+**select** - Native select dropdown element
+- Primary use: Standard form selection with native OS styling
+- Supports: Option groups, multiple selection, validation
+- Best for: Standard form inputs, accessibility-first designs
+
+**slider** - Range input control with draggable handle
+- Primary use: Numeric value selection within a range
+- Supports: Min/max values, step increments, value display
+- Best for: Volume controls, price ranges, quantity selection
+
+**toggle** - Switch-style boolean control
+- Primary use: On/off settings, feature enables/disables
+- Supports: Animation, custom styling, accessibility labels
+- Best for: Settings panels, feature flags, binary choices
+
+**input-text** - Text input field for user data entry
+- Primary use: Text data collection, search boxes, form fields
+- Supports: Placeholder text, validation, different input types
+- Best for: Names, emails, search queries, form data
+
+**progress-bar** - Visual indicator of task completion
+- Primary use: Loading states, task progress, completion status
+- Supports: Percentage values, indeterminate states, styling
+- Best for: File uploads, form completion, loading indicators
+
+### Media and Content Elements
+
+**image** - Raster image display element
+- Primary use: Photos, illustrations, icons, visual content
+- Supports: Multiple formats (JPG, PNG, SVG), responsive sizing, alt text
+- Best for: Hero images, product photos, user avatars, decorative graphics
+
+**video** - Video playback element
+- Primary use: Video content display with controls
+- Supports: Multiple formats, autoplay, controls, poster images
+- Best for: Product demos, tutorials, background videos, media content
+
+**icon-svg** - Scalable vector icon element
+- Primary use: Small decorative or functional icons
+- Supports: Vector scaling, color theming, accessibility labels
+- Best for: Navigation icons, status indicators, action buttons
+
+**text** - Rich text content element
+- Primary use: Headings, paragraphs, labels, content display
+- Supports: Typography styling, rich formatting, text alignment
+- Best for: Headlines, body text, captions, labels
+
+### Layout and Structure
+
+**device** - Mobile/Desktop Container Framework (Page)
+- Primary Use: Device Mockups and Responsive Design Previews
+- Supports: Screen Dimensions and Orientation
+- Ideal for: All types of layout and app development to maintain a defined work area for other elements.
+
+**container** - Basic grouping element for absolute positioning
+- Primary use: Grouping related elements with manual positioning
+- Supports: Absolute positioning, z-index stacking, basic styling
+- Best for: Custom layouts, overlays, precise positioning needs
+
+**container-layout** - Advanced responsive container with flex/grid capabilities (Beta)
+- Primary use: Responsive layouts with automatic child positioning
+- Supports: Flexbox, CSS Grid, gap spacing, alignment controls
+- Best for: Responsive designs, component layouts, adaptive interfaces
+
+**stack-layout** - Vertical or horizontal stack container
+- Primary use: Simple linear arrangements of elements
+- Supports: Direction control, spacing, alignment
+- Best for: Navigation menus, button groups, content lists
+
+**group** - Logical grouping element without layout constraints
+- Primary use: Organizing elements for selection and manipulation
+- Supports: Selection as unit, transformation as group
+- Best for: Design organization, batch operations, component grouping
+
+**workspace** - Top-level design canvas container
+- Primary use: Root container for entire design compositions
+- Supports: Multiple artboards, zoom levels, canvas management
+- Best for: Design file organization, artboard management
+
+### Navigation and Layout Components
+
+**navbar** - Horizontal navigation bar component
+- Primary use: Primary site navigation and branding
+- Supports: Logo placement, navigation links, action buttons
+- Best for: Website headers, app navigation, primary menus
+
+**sidebar-web** - Vertical sidebar navigation component
+- Primary use: Secondary navigation, filtering, content organization
+- Supports: Collapsible sections, nested navigation, responsive behavior
+- Best for: Admin interfaces, content management, secondary navigation
+
+### Geometric and Drawing Elements
+
+**shape-rectangle** - Rectangular shape element
+- Primary use: Backgrounds, containers, decorative shapes
+- Supports: Fill colors, borders, corner radius, effects
+- Best for: Cards, panels, background elements, geometric designs
+
+**ellipse** - Circular or oval shape element
+- Primary use: Circular buttons, avatars, decorative elements
+- Supports: Fill colors, borders, proportional sizing
+- Best for: Profile pictures, decorative circles, rounded elements
+
+**line** - Straight line element
+- Primary use: Dividers, connectors, decorative elements
+- Supports: Stroke styling, endpoints, thickness
+- Best for: Section dividers, decorative lines, simple connections
+
+**path** - Custom vector path element
+- Primary use: Complex shapes, custom illustrations, icons
+- Supports: SVG path data, bezier curves, complex shapes
+- Best for: Custom graphics, complex icons, artistic elements
+
+**shape-polygon** - Generic shape element
+- Primary use: Basic geometric forms and custom shapes
+- Supports: Various shape types, styling, transformations
+- Best for: Geometric designs, placeholder shapes, basic forms
+
+**shape-star** - Generic shape element
+- Primary use: Basic geometric forms and custom shapes
+- Supports: Various shape types, styling, transformations
+- Best for: Geometric designs, placeholder shapes, basic forms
+
+
+### Specialized Interface Elements
+
+**radio-icon** - Visual icon component for radio button styling
+- Primary use: Custom radio button appearance
+- Supports: Custom styling, states, accessibility
+- Best for: Styled radio buttons, custom form controls
+
+**checkbox-label** - Text label component for checkbox controls
+- Primary use: Descriptive text for checkbox options
+- Supports: Text styling, click-to-toggle, accessibility
+- Best for: Form labels, option descriptions, interactive text
+
+### Usage Guidelines for AI Agents
+
+**Structure Strategy:**
+- Start with `device` containers for mobile/desktop mockups and when you try to build a page
+- Use geometric elements (`shape-rectangle`, `ellipse`) for backgrounds and shapes
+
+**Layout Strategy:**
+- Use `container` for precise, absolute positioning needs
+- Use `container-layout` for responsive, flexible designs (Beta)
+- Use `stack-layout` for simple linear arrangements
+- Use `group` for logical organization without layout constraints
+
+**Content Strategy:**
+- Use `text` for all textual content with proper typography
+- Use `image` for raster graphics and photos
+- Use `icon-svg` for scalable icons and simple graphics
+- Use `video` for multimedia content
+
+**Interaction Strategy:**
+- Use `button` for primary user actions
+- Use `input-text` for text data collection
+- Use `checkbox`/`radio` for selections
+- Use `slider` for range inputs
+- Use `dropdown`/`select` for option selection
+
+**Best Practices:**
+- Use semantic element types that match the intended user interaction
+- Prefer layout containers over absolute positioning for maintainable designs
 
 ## Templates vs direct elements
 
 - Direct element: Use the element `type` directly in JSON.
 - Template-based element: Use the concrete runtime `type` (e.g., "button", "image") plus `meta.templateRef` carrying the template id/version. Only send differences in an `overrides` object.
 
-Template instantiation rules (children-as-root vs composite)
+### TemplateId → Template Metadata Mapping
 
-- Key flags/shape on a template definition:
-  - persistentFields.isComposite: boolean indicating a multi-element composition with internal wiring/bindings.
-  - useChildAsRoot (aka isChildrenAsRoot): when true, the template’s child node(s) should be inlined directly (no wrapper element type is used).
-  - children: may be a single object (single child) or an array (multiple children). Treat a single object as one-child.
+Use this list to identify the available `templateId` values and their associated metadata. When using a template, always include `meta.templateRef` in the payload. The `type` field is no longer required, as it will be derived from the template JSON during runtime.
 
-- Decision tree the agent must follow when creating from a templateId:
-  1) If isComposite is true OR the template represents a composition (multiple children/bindings), serialize the root element using its concrete runtime `type` and include `meta.templateRef`.
-  2) If the template is a single concrete element (e.g., image, text) or useChildAsRoot is true, inline the child with its runtime `type` and still include `meta.templateRef`.
-  3) If useChildAsRoot is true and there are multiple children, insert all top-level children. If a single parent is required, wrap them in a container/group.
+- **image** → Template for images. Add `meta.templateRef` with `id: "image"`.
+- **video** → Template for videos. Add `meta.templateRef` with `id: "video"`.
+- **icon-svg** → Template for SVG icons. Add `meta.templateRef` with `id: "icon-svg"`.
+- **text** → Template for text elements. Add `meta.templateRef` with `id: "text"`.
+- **button-basic** → Template for basic buttons. Add `meta.templateRef` with `id: "button-basic"`.
+- **toggle-ios** → Template for iOS toggles. Add `meta.templateRef` with `id: "toggle-ios"`.
+- **tabbar-ios** → Template for iOS tab bars. Add `meta.templateRef` with `id: "tabbar-ios"`.
+- **stepper-ios** → Template for iOS steppers. Add `meta.templateRef` with `id: "stepper-ios"`.
+- **status-bar-ios** → Template for iOS status bars. Add `meta.templateRef` with `id: "status-bar-ios"`.
+- **slider-ios** → Template for iOS sliders. Add `meta.templateRef` with `id: "slider-ios"`.
+- **sidebar-ios** → Template for iOS sidebars. Add `meta.templateRef` with `id: "sidebar-ios"`.
+- **segmented-control-ios** → Template for iOS segmented controls. Add `meta.templateRef` with `id: "segmented-control-ios"`.
+- **progress-indicator-ios** → Template for iOS progress indicators. Add `meta.templateRef` with `id: "progress-indicator-ios"`.
+- **progress-bar-ios** → Template for iOS progress bars. Add `meta.templateRef` with `id: "progress-bar-ios"`.
+- **date-time-picker-ios** → Template for iOS date-time pickers. Add `meta.templateRef` with `id: "date-time-picker-ios"`.
+- **page-control-ios** → Template for iOS page controls. Add `meta.templateRef` with `id: "page-control-ios"`.
+- **notification-ios** → Template for iOS notifications. Add `meta.templateRef` with `id: "notification-ios"`.
+- **navbar-ios** → Template for iOS navigation bars. Add `meta.templateRef` with `id: "navbar-ios"`.
+- **menu-ios** → Template for iOS menus. Add `meta.templateRef` with `id: "menu-ios"`.
+- **input-ios** → Template for iOS input fields. Add `meta.templateRef` with `id: "input-ios"`.
+- **alert-ios** → Template for iOS alerts. Add `meta.templateRef` with `id: "alert-ios"`.
+- **action-sheet-ios** → Template for iOS action sheets. Add `meta.templateRef` with `id: "action-sheet-ios"`.
+- **ios-button** → Template for iOS buttons. Add `meta.templateRef` with `id: "ios-button"`.
+- **text-field-android** → Template for Android text fields. Add `meta.templateRef` with `id: "text-field-android"`.
+- **tab-bar-android** → Template for Android tab bars. Add `meta.templateRef` with `id: "tab-bar-android"`.
+- **toggle-android** → Template for Android toggles. Add `meta.templateRef` with `id: "toggle-android"`.
+- **slider-android** → Template for Android sliders. Add `meta.templateRef` with `id: "slider-android"`.
+- **side-sheet-android** → Template for Android side sheets. Add `meta.templateRef` with `id: "side-sheet-android"`.
+- **bottom-sheet-android** → Template for Android bottom sheets. Add `meta.templateRef` with `id: "bottom-sheet-android"`.
+- **search-bar-android** → Template for Android search bars. Add `meta.templateRef` with `id: "search-bar-android"`.
+- **radio-android** → Template for Android radio buttons. Add `meta.templateRef` with `id: "radio-android"`.
+- **menu-android** → Template for Android menus. Add `meta.templateRef` with `id: "menu-android"`.
+- **list-android** → Template for Android lists. Add `meta.templateRef` with `id: "list-android"`.
+- **segmented-buttons-android** → Template for Android segmented buttons. Add `meta.templateRef` with `id: "segmented-buttons-android"`.
+- **icon-button-android** → Template for Android icon buttons. Add `meta.templateRef` with `id: "icon-button-android"`.
+- **fab-extended-android** → Template for Android extended FABs. Add `meta.templateRef` with `id: "fab-extended-android"`.
+- **fab-android** → Template for Android FABs. Add `meta.templateRef` with `id: "fab-android"`.
+- **dialog-android** → Template for Android dialogs. Add `meta.templateRef` with `id: "dialog-android"`.
+- **chip-android** → Template for Android chips. Add `meta.templateRef` with `id: "chip-android"`.
+- **checkbox-android** → Template for Android checkboxes. Add `meta.templateRef` with `id: "checkbox-android"`.
+- **android-button** → Template for Android buttons. Add `meta.templateRef` with `id: "android-button"`.
+- **web-button** → Template for web buttons. Add `meta.templateRef` with `id: "web-button"`.
+- **sidebar-web** → Template for web sidebars. Add `meta.templateRef` with `id: "sidebar-web"`.
+- **card-web** → Template for web cards. Add `meta.templateRef` with `id: "card-web"`.
+- **list-group-web** → Template for web list groups. Add `meta.templateRef` with `id: "list-group-web"`.
+- **tab-group-web** → Template for web tab groups. Add `meta.templateRef` with `id: "tab-group-web"`.
+- **pagination-web** → Template for web pagination. Add `meta.templateRef` with `id: "pagination-web"`.
+- **notification-web** → Template for web notifications. Add `meta.templateRef` with `id: "notification-web"`.
+- **progress-web** → Template for web progress bars. Add `meta.templateRef` with `id: "progress-web"`.
+- **input-web** → Template for web input fields. Add `meta.templateRef` with `id: "input-web"`.
+- **toggle-web** → Template for web toggles. Add `meta.templateRef` with `id: "toggle-web"`.
+- **checkbox-web** → Template for web checkboxes. Add `meta.templateRef` with `id: "checkbox-web"`.
+- **radio-web** → Template for web radio buttons. Add `meta.templateRef` with `id: "radio-web"`.
+- **select-web** → Template for web select dropdowns. Add `meta.templateRef` with `id: "select-web"`.
 
-Examples
+Examples:
 
 - Direct element
 ```json
@@ -265,813 +312,905 @@ Examples
   "children": []
 }
 ```
+### Notes
+- Always include `meta.templateRef` when using a template. The `type` field is not required, as it will be derived from the template JSON.
+- Ensure that the `templateId` exists in the backend or project configuration before referencing it.
 
-### TemplateId → renderer type mapping and instantiation mode
+## Base Element Properties
 
-Use this list to pick the runtime element `type`. If originating from a template, always add `meta.templateRef`.
+### Identity & Metadata Properties
 
-- image → type: "image" (inline)
-- video → type: "video" (inline)
-- icon-svg → type: "icon-svg" (inline)
-- text → type: "text" (inline)
-- button-basic → type: "button" + meta.templateRef.id="button-basic"
-- toggle-ios → wrapper (no direct type)
-- tabbar-ios → wrapper
-- stepper-ios → wrapper
-- status-bar-ios → wrapper
-- slider-ios → wrapper
-- sidebar-ios → wrapper
-- segmented-control-ios → wrapper
-- progress-indicator-ios → wrapper
-- progress-bar-ios → wrapper (map to "progress-bar" only if your adapter resolves to that type)
-- date-time-picker-ios → wrapper
-- page-control-ios → wrapper
-- notification-ios → wrapper
-- navbar-ios → type: "navbar" (inline)
-- menu-ios → wrapper
-- input-ios → type: "input-ios" (inline)
-- alert-ios → wrapper
-- action-sheet-ios → wrapper
-- ios-button → type: "button-ios" (inline)
-- text-field-android → wrapper
-- tab-bar-android → wrapper
-- toggle-android → type: "toggle-android" (inline)
-- slider-android → type: "slider-android" (inline)
-- side-sheet-android → wrapper
-- bottom-sheet-android → wrapper
-- search-bar-android → wrapper
-- radio-android → type: "radio-android" (inline)
-- menu-android → wrapper
-- list-android → wrapper
-- segmented-buttons-android → wrapper
-- icon-button-android → type: "icon-button-android" (inline)
-- fab-extended-android → type: "extended-fab-android" (inline)
-- fab-android → type: "fab-android" (inline)
-- dialog-android → wrapper
-- chip-android → type: "chip-android" (inline)
-- checkbox-android → type: "checkbox" (inline)
-- android-button → type: "buttonAndroid" (inline)
-- web-button → type: "buttonWeb" (inline)
-- sidebar-web → type: "sidebar-web" (inline)
-- card-web → wrapper
-- list-group-web → wrapper
-- tab-group-web → wrapper
-- pagination-web → wrapper
-- notification-web → wrapper
-- progress-web → type: "progress-bar" (inline)
-- input-web → wrapper
-- toggle-web → type: "toggle-web" (inline)
-- checkbox-web → type: "checkbox-web" (inline)
-- radio-web → type: "radio-web" (inline)
-- select-web → type: "select-web" (inline)
+**name** - `string` (default: `""`)
+- Human-readable label for element identification and organization
+- Used in layer panels, search, and development workflows
+- Can be changed by users for better project organization
 
-Aliases used by the renderer
-- extended-fab-android is the renderer type for templateId "fab-extended-android"
-- buttonAndroid is the renderer type for templateId "android-button"
-- buttonWeb is the renderer type for templateId "web-button"
+**id** - `string` (default: auto-generated UUID)
+- Unique identifier for the element, automatically generated
+- Required and immutable after creation
+- Used for internal references and relationships
 
-## Serialized element schema (baseline)
+**type** - `string` (required)
+- Element type that determines behavior and capabilities
+- Must be from allowed types: device, button, image, text, rectangle, ellipse, line, container, etc.
+- Cannot be changed after element creation
+
+**bindingKey** - `string|null` (default: `null`)
+- Optional unique key for data binding relationships
+- Used to connect elements in templates and dynamic content
+- Enables property synchronization between elements
+
+**templateId** - `string|null` (default: `null`)
+- Reference to template this element is based on
+- Used for template instances and component systems
+- Enables template-based element creation and updates
+
+**referenceElementId** - `string|null` (default: `null`)
+- Reference to another element for relationships
+- Used for linking, grouping, and interactive behaviors
+- Enables element-to-element connections
+
+### Layout & Positioning Properties
+
+**position** - `select` (default: `"absolute"`)
+- CSS position type controlling layout behavior
+- Options: `absolute`, `relative`, `static`
+- Affects how left/top coordinates are interpreted
+
+**left** - `number|null` (default: `null`)
+- X-coordinate position relative to parent container
+- Measured in pixels with decimal precision (2 places)
+- Only applies when position is `absolute` or `relative`
+
+**top** - `number|null` (default: `null`)
+- Y-coordinate position relative to parent container
+- Measured in pixels with decimal precision (2 places)
+- Only applies when position is `absolute` or `relative`
+
+**width** - `number|null` (default: `null`)
+- Element width in pixels
+- Must be non-negative with decimal precision (2 places)
+- Interacts with widthBehavior and lockAspectRatio
+
+**height** - `number|null` (default: `null`)
+- Element height in pixels
+- Must be non-negative with decimal precision (2 places)
+- Interacts with heightBehavior and lockAspectRatio
+
+**widthBehavior** - `select` (default: `"fixed"`)
+- Controls how element width responds to content and container
+- **fixed**: Uses explicit width value
+- **hug**: Width adjusts to fit content (disables width property)
+- **fill**: Expands to fill available container width
+
+**heightBehavior** - `select` (default: `"fixed"`)
+- Controls how element height responds to content and container
+- **fixed**: Uses explicit height value
+- **hug**: Height adjusts to fit content (disables height property)
+- **fill**: Expands to fill available container height
+
+**zIndex** - `number` (default: `0`)
+- Stacking order - higher values appear on top
+- Used for layering elements and managing visual hierarchy
+- Can be negative for elements that should appear behind others
+
+**lockAspectRatio** - `boolean` (default: `false`)
+- Maintains width/height ratio when resizing
+- When true, changing width automatically adjusts height and vice versa
+- Only applies when both dimensions use fixed behavior
+
+### Transform & Rotation Properties
+
+**scale** - `number` (default: `1`)
+- Scale factor for element size transformation
+- Range: 0.1 to 10.0
+- Applied as CSS transform, affects visual appearance only
+
+**rotation** - `number` (default: `0`)
+- Rotation angle in degrees
+- Range: -360 to 360, automatically normalized to 0-360
+- Applied as CSS transform around element center
+
+### Appearance & Styling Properties
+
+**fill** - `color|null` (default: `null`)
+- Background color, gradient, or pattern
+- Supports solid colors, linear gradients and radial gradients
+- Can be null for transparent background
+
+**stroke** - `color|null` (default: `null`)
+- Border/outline color
+- Supports same color types as fill
+- Works with strokeWidth to create visible borders
+
+**strokeWidth** - `number` (default: `0`)
+- Border thickness in pixels
+- Can be uniform or per-side (top, right, bottom, left)
+- Zero value means no visible border
+
+**strokeStyle** - `select` (default: `"solid"`)
+- Border line style
+- Options: `solid`, `dashed`, `dotted`
+- Only visible when strokeWidth > 0
+
+**strokePosition** - `select` (default: `"inside"`)
+- Border position relative to element bounds
+- **inside**: Border drawn inside element bounds
+- **center**: Border centered on element edge
+- **outside**: Border drawn outside element bounds
+
+**borderRadius** - `number|object` (default: `0`)
+- Corner radius for rounded corners
+- Can be uniform number or object with per-corner values
+- Measured in pixels, creates rounded rectangle effect
+
+**opacity** - `number` (default: `100`)
+- Element transparency level
+- Range: 0-100 (percentage)
+- 100 = fully opaque, 0 = fully transparent
+
+**visible** - `boolean` (default: `true`)
+- Element visibility state
+- Controls CSS display property
+- Hidden elements don't participate in layout or interactions
+
+### Spacing Properties
+
+**padding** - `number|object` (default: `0`)
+- Internal spacing inside element bounds
+- Can be uniform number or object with per-side values (top, right, bottom, left)
+- Affects content positioning within element
+- Only has effect when the element is a container in 'flex' mode
+
+**margin** - `number|object` (default: `0`, hidden)
+- External spacing around element
+- Can be uniform number or object with per-side values
+- Currently hidden in UI but available for advanced layouts
+- Only has effect when the element is a child of container in 'flex' mode
+
+### Constraint Properties
+
+**minWidth** - `number|null` (default: `null`, hidden)
+- Minimum width constraint for responsive sizing
+- Prevents element from becoming smaller than specified width
+- Works with flexible width behaviors
+
+**minHeight** - `number|null` (default: `null`, hidden)
+- Minimum height constraint for responsive sizing
+- Prevents element from becoming smaller than specified height
+- Works with flexible height behaviors
+
+**maxWidth** - `number|null` (default: `null`, hidden)
+- Maximum width constraint for responsive sizing
+- Prevents element from becoming larger than specified width
+- Works with flexible width behaviors
+
+**maxHeight** - `number|null` (default: `null`, hidden)
+- Maximum height constraint for responsive sizing
+- Prevents element from becoming larger than specified height
+- Works with flexible height behaviors
+
+### Effects Properties
+
+**boxShadow** - `object|null` (default: `null`)
+- Drop shadow effect with blur, offset, and color
+- Properties: offsetX, offsetY, blur, spread, color
+- Creates depth and visual separation
+
+**innerShadow** - `object|null` (default: `null`)
+- Inner shadow effect for inset depth
+- Same properties as boxShadow but applied inside element bounds
+- Creates recessed or pressed appearance
+
+**dropShadow** - `object|null` (default: `null`)
+- Filter-based drop shadow effect
+- Alternative to boxShadow for certain visual effects
+- Properties: offsetX, offsetY, blur, color
+
+**layerBlur** - `number|null` (default: `null`)
+- Gaussian blur applied to entire element
+- Measured in pixels
+- Creates focus/unfocus effects
+
+**bgBlur** - `number|null` (default: `null`)
+- Background blur effect (backdrop-filter)
+- Measured in pixels
+- Creates frosted glass effects over background content
+
+### State & Behavior Properties
+
+**state** - `select|null` (default: `null`)
+- Current interactive state for stateful elements
+- Options: `default`, `hover`, `active`, `disabled`, `focused`
+- Used with state-based styling and interactions
+
+**states** - `object|null` (default: `null`, internal)
+- Configuration object for available states
+- Defines properties that change based on current state
+- Internal property managed by state system
+
+### Base Property Value Examples
 
 ```json
-{
-  "id": "uuid",
-  "type": "<element-type>",
-  "properties": { "<key>": <value>, ... },
-  "children": [ { /* same schema */ } ]
-}
-```
-
-Keys in `properties` map to the `CommonProperties` enum and any element-specific properties (adapters can add their own).
-
-### Common properties (always available)
-
-Identity & meta
-- name: string
-- bindingKey: string | null
-- templateId: string | null
-- referenceElementId: string | null
-
-Placement & sizing
-- position: string (default: "absolute")
-- left, top, right, bottom: number | null (Decimal(2))
-- width, height: number | null (Decimal(2))
-- widthBehavior, heightBehavior: 'fixed' | 'hug'
-- lockAspectRatio: boolean
-- scale: number
-- rotation: number (°)
-- zIndex: number
-
-Visibility & effects
-- visible: boolean
-- opacity: number (0..100)
-- clip: boolean (internal)
-
-Style
-- fill, stroke: color
-- strokeStyle: select (border style options)
-- borderRadius: number | object
-- strokeWidth: number
-- strokePosition: select
-- margin: number (hidden)
-- padding: Box
-- boxShadow, innerShadow, dropShadow: objects
-- layerBlur, bgBlur: number
-
-Constraints (hidden defaults)
-- minWidth, minHeight, maxWidth, maxHeight
-
-Hierarchy & state
-- parent: object (internal)
-- state: select
-- states: array (internal, used by PropertyStates)
-
-## Centralized properties reference
-
-This section centralizes the canonical property reference used across element adapters. Use these canonical entries as the single source of truth for property names, types, allowed values and serialization notes. Per-type subsections below list which of these properties are commonly used by the adapter and any adapter-specific defaults or aliases.
-
-### Identity & meta
-- name: string — default: "" — human readable label for the element; serialized in `properties.name`.
-- bindingKey: string | null — unique binding identifier for data bindings (nullable).
-- templateId / meta.templateRef: string | object — references the toolbox template or template metadata; when present prefer `overrides`/`propsMode: "diff"` semantics.
-- referenceElementId: string | null — references another element for relative layout or binding.
-
-### Placement & sizing
-- position: 'absolute' | 'relative' | 'static' — default: 'absolute'.
-- left, top, right, bottom: number | null — decimal(2). When omitted, the runtime may compute layout from parent/flow.
-- width, height: number | null — decimal(2).
-- widthBehavior, heightBehavior: 'fixed' | 'hug' — default: 'fixed' unless adapter overrides to 'hug' (content-driven).
-- lockAspectRatio: boolean — if true, maintain aspect ratio when resizing.
-- scale: number — default: 1.
-- rotation: number (degrees) — default: 0; allowed range typically [-360..360].
-- zIndex: number — stacking order.
-
-### Visibility & effects
-- visible: boolean — default: true.
-- opacity: number (0..100) — default: 100.
-- clip: boolean — internal: whether children are clipped to this element.
-
-### Style
-- fill, stroke: color token or color object — may accept token references.
-- strokeStyle: select — border style options (adapter-defined choices).
-- borderRadius: number | object — per-corner radius or shorthand.
-- strokeWidth: number — border thickness.
-- strokePosition: select — inside | center | outside (adapter-defined).
-- padding: Box — object with top/right/bottom/left.
-- boxShadow, innerShadow, dropShadow: object — shadow descriptors.
-- layerBlur, bgBlur: number — blur amounts.
-
-### Constraints and layout hints
-- minWidth, minHeight, maxWidth, maxHeight: number — layout constraints.
-- widthBehaviorHint / heightBehaviorHint: adapter hint fields (optional) used by some adapters.
-
-### Layout-specific helpers
-- layout / display: 'absolute' | 'flex' | 'grid' — high-level layout mode for containers; adapter may map aliases.
-- direction / flexDirection: 'horizontal'|'vertical'|'row'|'column' — aliases exist; runtime maps to concrete flex axis.
-- justifyContent, alignItems: select — start|center|end|space-between|space-around (adapter-defined set).
-- gap, gapX, gapY: number — spacing between children (gap shorthand with optional axis overrides).
-- spacingType: 'fixed' | 'auto' — how children size against gap rules.
-- layoutAlign: preset string — convenience presets (see `layoutAlign` list below) that set both `justifyContent` and `alignItems`.
-
-### Bindings & dynamic values
-- bindings: array/object — structured bindings between element properties; serialized as adapter-specific `bindings` section when present.
-- tokens: Record<string, any> — token pointer map used to resolve theme values via `getValueFromToken`.
-
-### Hierarchy & state (serialization notes)
-- parentId: string — persisted in flat exports to attach during deserialization.
-- children: string[] — array of child ids in flat exports. Adapters may omit full child objects when they are present in the same `elements` payload.
-
-### layoutAlign presets (quick-reference)
-- `top-left`, `top-center`, `top-right`
-- `middle-left`, `middle-center`, `middle-right`
-- `bottom-left`, `bottom-center`, `bottom-right`
-
-## Property value examples (contracts)
-Below are canonical JSON shapes for commonly used complex properties. Include these shapes when producing payloads so the importer and adapters can validate and apply them correctly.
-
-- fill (solid example)
-
-```json
-{
+// Solid color fill
+"fill": {
   "type": "solid",
-  "alpha": 1,
-  "color": "#ffffff"
+  "color": "#3b82f6",
+  "alpha": 1
 }
-```
 
-- fill (gradient example)
-
-```json
-{
+// Linear gradient fill
+"fill": {
   "type": "linear-gradient",
-  "angle": 90,
+  "angle": 45,
   "stops": [
-    { "color": "#ff7a18", "offset": 0 },
-    { "color": "#af002d", "offset": 1 }
+    { "color": "#3b82f6", "offset": 0 },
+    { "color": "#8b5cf6", "offset": 1 }
   ]
 }
-```
 
-- padding (box)
-
-```json
-{
-  "top": 8,
-  "right": 12,
-  "bottom": 8,
-  "left": 12
+// Box shadow
+"boxShadow": {
+  "offsetX": 0,
+  "offsetY": 4,
+  "blur": 6,
+  "spread": -1,
+  "color": "rgba(0, 0, 0, 0.1)"
 }
-```
-
-- boxShadow
-
-```json
-{
+// Inner Shadow
+"innerShadow": {
+  "offsetX": 2,
+  "offsetY": 2,
+  "blur": 4,
+  "spread": -1,
+  "color": "rgba(0, 0, 0, 0.1)"
+}
+// Drop Shadow
+"dropShadow": {
   "offsetX": 0,
   "offsetY": 2,
-  "blur": 8,
-  "spread": 0,
-  "color": "rgba(0,0,0,0.12)",
-  "inset": false
+  "blur": 3,
+  "color": "rgba(0, 0, 0, 0.1)"
+}
+// Padding object
+"padding": {
+  "top": 12,
+  "right": 16,
+  "bottom": 12,
+  "left": 16
+}
+//Margin object
+"margin":{
+   "top": 16,
+  "right": 0,
+  "bottom": 0,
+  "left": 0
+}
+
+// Border radius object
+"borderRadius": {
+  "topLeft": 8,
+  "topRight": 8,
+  "bottomRight": 0,
+  "bottomLeft": 0
 }
 ```
 
-- safeArea
+## Container Element Properties
+
+Container elements extend base element properties with specialized layout, flexbox, and child management capabilities. There are two main container types: `container` (basic) and `container-layout` (advanced with responsive layout features - Beta).
+
+### Layout System Properties
+
+**layout** - `select` (default: `"absolute"`)
+- Sets the primary axis direction for layout
+- **flex-horizontal**: Children arranged left-to-right (flex-direction: row)
+- **flex-vertical**: Children arranged top-to-bottom (flex-direction: column)
+- **flex-grid**: Children arranged in a grid pattern with wrapping
+- **absolute**: Children positioned absolutely (no layout constraints)
+- Determines how children are positioned and sized within the container
+- Controls which gap and alignment properties are visible and active
+
+### Flexbox Layout Properties
+
+**flexDirection** - `select` (default: `"row"`,internal only modified by "layout" -> 'flex-[mode]')
+- CSS flex-direction property
+- **row**: Horizontal main axis, left-to-right
+- **column**: Vertical main axis, top-to-bottom
+- **row-reverse**: Horizontal main axis, right-to-left
+- **column-reverse**: Vertical main axis, bottom-to-top
+- Automatically set based on layout property 
+
+**flexWrap** - `select` (default: `"nowrap"`,internal only modified by "layout" -> 'flex-grid' or 'flex-[direction]')
+- CSS flex-wrap property controlling line wrapping
+- **nowrap**: Items stay on single line, may overflow
+- **wrap**: Items wrap to new lines as needed
+- **wrap-reverse**: Items wrap to new lines in reverse order
+- Automatically set to "wrap" when layout is "flex-grid"
+
+**justifyContent** - `select` (default: `"start"`,internal only modified by "layoutAlign")
+- CSS justify-content property for main axis alignment
+- **start**: Items aligned to start of container
+- **end**: Items aligned to end of container
+- **center**: Items centered in container
+- **space-between**: Items evenly distributed, first/last at edges
+- Automatically updated based on layoutAlign and spacing settings
+
+**alignItems** - `select` (default: `"start"`,internal only modified by "layoutAlign")
+- CSS align-items property for cross axis alignment
+- **start**: Items aligned to start of cross axis
+- **end**: Items aligned to end of cross axis
+- **center**: Items centered on cross axis
+- **stretch**: Items stretched to fill cross axis
+- **baseline**: Items aligned to text baseline
+- Automatically updated based on layoutAlign settings
+
+**alignContent** - `select` (default: `"start"`, internal only modified by "layoutAlign")
+- CSS align-content property for multi-line flex containers
+- **flex-start**: Lines aligned to start of container
+- **flex-end**: Lines aligned to end of container
+- **center**: Lines centered in container
+- **space-between**: Lines evenly distributed
+- **space-around**: Lines with equal space around
+- **stretch**: Lines stretched to fill container
+- Automatically updated based on layoutAlign settings
+
+### Spacing & Gap Properties
+
+**gap** - `number` (default: `0`)
+- General gap between all children in pixels
+- Used when spacing is uniform in both directions
+- Can be disabled when justifyContent uses space distribution
+- Applies to both row and column gaps in basic containers
+
+**gapX** - `number|auto` (default: `0`, layout flex only)
+- Horizontal gap between children in pixels
+- **number**: Fixed pixel value for column gap
+- **auto**: Automatic spacing using space-between distribution
+- Visible only in horizontal and grid directions
+- Controls CSS column-gap property
+
+**gapY** - `number|auto` (default: `0`, clayout flex only)
+- Vertical gap between children in pixels
+- **number**: Fixed pixel value for row gap
+- **auto**: Automatic spacing using space-between distribution
+- Visible only in vertical and grid directions
+- Controls CSS row-gap property
+
+### Advanced Layout Properties (container width layout diferent to 'absolute')
+
+**layoutAlign** - `layoutAlign` (default: `"top-left"`)
+- Combined alignment control for both axes
+- Format: `{vertical}-{horizontal}`
+- **Vertical options**: top, middle, bottom
+- **Horizontal options**: left, center, right
+- Examples: "top-left", "middle-center", "bottom-right"
+- Automatically updates justifyContent and alignItems properties
+
+**spacingType** - `select` (default: `"fixed"`, layout flex only)
+- Controls how spacing between children is calculated
+- **fixed**: Uses explicit gap values (gapX, gapY)
+- **auto**: Uses automatic space distribution (space-between)
+- When set to "auto", gap properties are disabled
+- Affects layoutAlign behavior and justifyContent settings
+
+### Selection & Color Management
+
+**selectionColors** - `array` (default: `null`, For internal use, it is modified in runtime)
+- Automatically generated collection of color properties from container and children
+- Used for batch color editing and design system consistency
+- Updates automatically when child colors change
+- Provides unified color management interface for complex hierarchies
+
+### Property Value Examples
 
 ```json
-{ "top": 44, "bottom": 34, "left": 0, "right": 0 }
-```
+// Horizontal flexbox container
+{
+  "layout": "flex-horizontal",
+  "layoutAlign": "middle-center",
+  "gapX": 16,
+  "spacingType": "fixed"
+}
 
-- layoutDefaults (device subtree defaults)
+// Vertical stack with auto spacing
+{
+  "layout": "flex-vertical",
+  "layoutAlign": "top-left",
+  "gapY": "auto",
+  "spacingType": "auto"
+}
+
+// Grid layout container
+{
+  "layout": "flex-grid",
+  "layoutAlign": "top-left",
+  "gapX": 12,
+  "gapY": 12,
+  "flexWrap": "wrap"
+}
+
+// absolute component container
+{
+  "layout": "absolute"
+}
+```
+### Hierarchy (serialization notes)
+- parentId: string — persisted in flat exports to attach during deserialization.
+- children: string[] — array of child ids in flat exports. Payloads may omit full child objects when they are present elsewhere in the same `elements` payload.
+
+## Text Element Properties
+
+Text elements extend base element properties with specialized typography, formatting, and text behavior capabilities. They are optimized for displaying and editing textual content with comprehensive styling options.
+
+### Content Properties
+
+**text** - `string` (default: `""`)
+- The actual text content to display
+- Can include line breaks and special characters
+- Primary content property that drives element sizing
+
+### Typography Properties
+
+**fontFamily** - `select` (default: `"Roboto"`)
+- Font family for text display
+- Available options from font family options list
+- Common values: "Roboto", "Arial", "Helvetica", "Times New Roman", "Georgia"
+- Affects text rendering and character metrics
+
+**fontSize** - `number` (default: `14`)
+- Font size in pixels
+- Range: 1-1000 pixels with validation
+- Affects text size and automatic height calculations
+- Triggers automatic line height recalculation when set to auto
+
+**fontWeight** - `select` (default: `"400"`)
+- Font weight/boldness level
+- Standard values: "100", "200", "300", "400" (normal), "500", "600", "700" (bold), "800", "900"
+- Affects text thickness and visual prominence
+- Works in conjunction with isBold property
+
+**fontVariant** - `fontVariation` (default: `FontVariationSource.default()`,this is )
+- Advanced font variation settings
+- Controls font style variations and OpenType features
+- Automatically syncs with isItalic property when changed
+- Used for advanced typography control
+- This is used by Google variant fonts dynamically loaded into the project, no modification is needed for now.
+
+**lineHeight** - `number|auto` (default: `"auto"`)
+- Line spacing between text lines
+- **auto**: Calculated as fontSize × 1.222 ratio
+- **number**: Fixed line height in pixels
+- Affects text block height and readability
+
+**letterSpacing** - `number` (default: `0`)
+- Additional space between characters in pixels
+- Positive values: increased spacing
+- Negative values: tighter spacing
+- Affects text width and readability
+
+### Text Styling Properties
+
+**color** - `color` (default: `{ type: 'solid', color: #000000, alpha: 1 }`)
+- Text color using full color system
+- Supports solid colors with alpha transparency
+- Primary visual property for text appearance
+- Used in CSS color generation
+
+**isItalic** - `boolean` (default: `false`)
+- Applies italic styling to text
+- Alternative to fontStyle property
+- Syncs automatically with fontVariant changes
+- Toggle button control in UI
+
+**isBold** - `boolean` (default: `false`)
+- Applies bold styling to text
+- Works in addition to fontWeight property
+- Quick toggle for bold appearance
+- Toggle button control in UI
+
+**textDecoration** - `select` (default: `"none"`)
+- Text decoration styling
+- Options: "none", "underline","line-through"
+- Adds visual emphasis and semantic meaning
+- Can be combined with other styling
+
+**textTransform** - `select` (default: `"none"`)
+- Text case transformation
+- **none**: No transformation
+- **uppercase**: ALL CAPS
+- **lowercase**: all lowercase
+- **capitalize**: First Letter Capitalized
+- Applied during rendering, doesn't modify source text
+
+**textBaseline** - `select` (default: `"none"`)
+- Vertical text alignment baseline
+- Options: "none", "super", "sub"
+- Affects vertical positioning within text line
+- Used for advanced typography control
+
+### Alignment Properties
+
+**textAlign** - `select` (default: `"left"`)
+- Horizontal text alignment within element bounds
+- **left**: Left-aligned text
+- **center**: Center-aligned text
+- **right**: Right-aligned text
+- Affects text layout within container
+
+**verticalAlign** - `select` (default: `"start"`)
+- Vertical alignment of text within element bounds
+- **start**: Top alignment
+- **center**: Middle alignment
+- **end**: Bottom alignment
+- Controls text positioning in vertical space
+
+### Sizing and Layout Properties
+
+**autoSizeType** - `select` (default: `"auto-width"`)
+- Controls automatic sizing behavior
+- **auto-width**: Width and height adjust to content (hug both)
+- **auto-height**: Fixed width, height adjusts to content
+- **fixed**: Both width and height are fixed
+- Automatically updates widthBehavior and heightBehavior
+
+**widthBehavior** - `select` (default: `"hug"`, controlled by autoSizeType)
+- How text element width responds to content
+- Managed automatically by autoSizeType property
+- Disabled for direct editing in text elements
+- **hug**: Width fits content exactly
+
+**heightBehavior** - `select` (default: `"hug"`, controlled by autoSizeType)
+- How text element height responds to content
+- Managed automatically by autoSizeType property
+- Disabled for direct editing in text elements
+- **hug**: Height fits content exactly
+
+### List Properties
+
+**listStyle** - `select` (default: `"none"`)
+- List formatting when text contains list items
+- Options: "none", "orderer", "unorderer"
+- Used for structured text content
+- Affects text presentation and indentation
+
+### Removed/Hidden Properties
+
+The following base element properties are deleted or hidden for text elements:
+
+**Deleted Properties:**
+- `stroke` - Text uses color instead of stroke
+- `borderStyle` - Text typically doesn't have borders
+- `borderRadius` - Not applicable to text
+- `fill` - Text uses color property instead
+- `padding` - Text manages spacing differently
+
+**Modified Properties:**
+- `widthBehavior` and `heightBehavior` are controlled by autoSizeType
+- Size properties work with text measurement system
+
+### Property Value Examples
 
 ```json
-{ "display": "flex", "flexDirection": "column", "gap": 16 }
+// Basic text configuration
+{
+  "text": "Hello World",
+  "fontSize": 16,
+  "fontFamily": "Roboto",
+  "color": { "type": "solid", "color": "#333333", "alpha": 1 }
+}
+
+// Advanced typography
+{
+  "text": "Stylized Text",
+  "fontSize": 24,
+  "fontFamily": "Georgia",
+  "fontWeight": "700",
+  "isItalic": true,
+  "textDecoration": "underline",
+  "letterSpacing": 1.5,
+  "lineHeight": 32
+}
+
+// Transformed text
+{
+  "text": "transform this text",
+  "textTransform": "uppercase",
+  "textAlign": "center",
+  "fontSize": 18,
+  "fontWeight": "600"
+}
 ```
 
-- image `src` property (url or data object)
+## Image Element Properties
 
-```json
-{ "type": "url", "value": "https://example.com/image.jpg" }
-```
+Image elements extend base element properties with specialized image handling, aspect ratio management, and source type capabilities. They are optimized for displaying various types of visual content including raster images, SVG icons, and icon fonts.
 
-- tokens (theme pointer)
+### Image Source Properties
 
-```json
-{ "color": "theme.primary", "spacing": "theme.size.2" }
-```
+**src** - `ImageProp` (default: `null`)
+- Primary image source property supporting multiple source types
+- Controls visibility of other properties based on source type
+- Triggers automatic size detection for URL-based images
+- Core property that determines rendering behavior
 
-- bindings (simple example linking text to another element's property)
+**Image Source Types:**
 
+**url** - Web URLs and file paths
 ```json
 {
-  "source": { "elementId": "title-1", "property": "text" },
-  "target": { "property": "text" },
-  "transform": null
+  "type": "url",
+  "value": "https://example.com/image.jpg"
 }
 ```
+### Size and Aspect Ratio Properties
+**lockAspectRatio** - boolean (default: true)
 
-- Generic `children`/`parentId` usage in flat payloads
+- Maintains width/height proportions during resizing
+- Automatically enabled when loading images with intrinsic dimensions
+- Prevents distortion of image content
+- Critical for maintaining visual integrity
 
-```json
-{ "id": "child-1", "type": "text", "properties": { "text": "Hello" }, "parentId": "container-1", "children": [] }
-```
+**widthBehavior** - select (default: "fixed", disabled)
 
-Include these examples for agents when producing payloads; adapt values to the specific adapter if the adapter documents different or additional fields.
+- Fixed to prevent automatic width adjustments
+- Ensures precise control over image dimensions
+- Works with lockAspectRatio for proportional scaling
+- Disabled to maintain image sizing consistency
 
-## Type-specific property notes (summary)
-This subsection lists commonly used properties and adapter-specific defaults for a few high-priority runtime types. Use these as examples; adapters may expose additional, adapter-only properties.
+**heightBehavior** - select (default: "fixed", disabled)
 
-### container-layout
-- Canonical props used: `layout`, `direction`, `flexDirection`, `justifyContent`, `alignItems`, `gap`, `gapX`, `gapY`, `spacingType`, `widthBehavior`, `heightBehavior`, `layoutAlign`, `flexWrap`.
-- Defaults (adapter): `layout: "flex"`, `flexWrap: "nowrap"`, `widthBehavior: "hug"`, `heightBehavior: "hug"`.
-- Notes: `direction` is a high-level alias for `flexDirection`. `layoutAlign` is a convenience preset that maps to `justifyContent`/`alignItems`.
+- Fixed to prevent automatic height adjustments
+- Ensures precise control over image dimensions
+- Works with lockAspectRatio for proportional scaling
+- Disabled to maintain image sizing consistency
 
-### device
-- Canonical props used: `name`, `width`, `height`, `orientation`, `safeArea`, `layoutDefaults`.
-- `layoutDefaults` example: `{ "display": "flex", "flexDirection": "column" }` — used to apply defaults to children created within the device.
-- Notes: Treat `device` as a normal element in flat payloads; `device` may be a workspace root element.
+## Device Element Properties
 
-### workspace
-- Canonical props used: `name`, `rootElements` (array of ids), metadata fields (owner, createdAt etc. depending on backend).
-- Notes: Workspaces are stored in the `workspaces` array in flat exports and their `rootElements` reference element ids.
+Device elements represent a special container that simulates a device frame within the editor. They act as locked root-level containers that encapsulate child elements, providing structured dimensions, design grids, and controlled navigation behavior.
 
-### image
-- Canonical props used: `src`, `width`, `height`, `fit` (contain|cover|fill), `alt`.
+### Dimension Properties
 
-### text
-- Canonical props used: `text`, `fontFamily`, `fontSize`, `fontWeight`, `lineHeight`, `color`, `textAlign`.
+**deviceWidth** – number (default: null, required)
 
-### button
-- Canonical props used: inherits `text` properties plus `onClick` binding, `states` for hover/active, and `padding`.
+- Defines the device frame width in pixels.
 
-### group / container
-- Canonical props used: inherits general layout props; often used with `position: absolute` and explicit left/top/width/height in absolute mode.
+- Drives layout calculations and container bounds.
 
----
+- Falls back to the element’s current width if null.
 
+**deviceHeight** – number (default: null, required)
 
-Add per-template or per-type detailed examples below or inline near the template catalog when needed; the runtime maps these canonical names to adapter internals at import time.
+- Defines the device frame height in pixels.
 
-## Detailed property contracts by type
-Below are concrete JSON shapes for properties that are adapter-specific or commonly differ per type. Use these as reference contracts when creating payloads for the backend.
+- Controls the total vertical bounds.
 
-### container-layout (expanded)
-- `flexWrap` (wrap behavior)
+- Falls back to the element’s current height if null.
 
-```json
-"flexWrap": "nowrap" // "nowrap" | "wrap" | "wrap-reverse"
-```
+### Layout Properties
 
-- `justifyContent` / `alignItems` (explicit)
+**layoutGrid** – layoutGrid (default: null, for use in editor does not apply or interfere with the final design)
 
-```json
-"justifyContent": "start" // start|center|end|space-between|space-around
-"alignItems": "center"    // start|center|end|stretch
-```
+- Controls the design grid configuration inside the device.
 
-### device (expanded)
-- `orientation` (string)
+- Accepts grid, column, or row layouts.
 
-```json
-"orientation": "portrait" // "portrait" | "landscape"
-```
-
-- `safeArea` (object — all numbers)
-
-```json
-"safeArea": { "top": 44, "bottom": 34, "left": 0, "right": 0 }
-```
-
-- `layoutDefaults` (object applied to newly created children)
-
-```json
-"layoutDefaults": { "display": "flex", "flexDirection": "column", "gap": 16 }
-```
-
-### workspace
-- `rootElements` (array of ids)
-
-```json
-{"id": "workspace-1", "name": "Mobile Screens", "rootElements": ["device-1"]}
-```
-
-### image
-- `src` (url/data)
-
-```json
-"src": { "type": "url", "value": "https://example.com/img.png" }
-// or
-"src": { "type": "data", "mime": "image/png", "value": "iVBORw0KG..." }
-```
-
-### text
-- `text` and rich-text hint
-
-```json
-"text": "Hello world"
-// optional rich text
-"textRich": { "ops": [ { "insert": "Hello" }, { "attributes": { "bold": true }, "insert": " world" } ] }
-```
-
-### button
-- `states` (map of stateName → property overrides)
-
-```json
-"states": {
-  "hover": { "properties": { "fill": { "type": "solid", "color": "#f1f5f9" } } },
-  "active": { "properties": { "scale": 0.98 } }
-}
-```
-
-- `onClick` (binding or action reference)
-
-```json
-"onClick": { "type": "navigate", "target": "screen-2" }
-// or binding to an action id
-"onClick": { "actionId": "action-123" }
-```
-
-### rectangle / ellipse / shape (vector)
-- `borderRadius` (number or per-corner)
-
-```json
-// uniform
-"borderRadius": 8
-// per-corner
-"borderRadius": { "topLeft": 8, "topRight": 8, "bottomRight": 4, "bottomLeft": 4 }
-```
-
-- `stroke` and `strokePosition`
-
-```json
-"stroke": { "type": "solid", "color": "#111827", "alpha": 1 }
-"strokeWidth": 2
-"strokePosition": "center" // inside | center | outside
-```
-
-### polygon / shape-polygon
-- `points` (array of {x,y})
-
-```json
-"points": [ { "x": 0, "y": 0 }, { "x": 100, "y": 0 }, { "x": 50, "y": 86 } ]
-```
-
-### path
-- `pathData` (array of path commands or SVG path string)
-
-```json
-// array form
-"pathData": [ { "cmd": "M", "args": [0,0] }, { "cmd": "L", "args": [100,0] }, { "cmd": "C", "args": [120,0,120,50,100,50] } ]
-// svg string form
-"path": "M0 0 L100 0 C120 0 120 50 100 50"
-```
-
-### line
-- `x1,y1,x2,y2` or endpoints
-
-```json
-"x1": 0, "y1": 0, "x2": 120, "y2": 0
-```
-
-### lineConnector
-- `from` / `to` references and anchor hints
-
-```json
-"from": { "elementId": "btn-1", "anchor": "bottom" },
-"to":   { "elementId": "input-1", "anchor": "top" },
-"routing": "manhattan" // or "direct"
-```
-
-### group / container (absolute mode specifics)
-- absolute-positioned children often set `left`, `top`, `width`, `height` explicitly; include `position: "absolute"`.
-
-```json
-{ "type": "group", "properties": { "position": "absolute" }, "children": ["e1","e2"] }
-```
-
-### bindings (expanded)
-- full shape when multiple transforms/params are present
-
+### Grid Layout Example
 ```json
 {
-  "id": "binding-1",
-  "source": { "elementId": "input-1", "property": "value" },
-  "target": { "elementId": "label-1", "property": "text" },
-  "transform": { "type": "template", "template": "Value: {{value}}" }
+  "type": "grid",
+  "size": 8,
+  "color": "#e0e0e0"
 }
 ```
 
----
+- Uniform grid lines across the device frame.
 
-### Behaviors and rules
+- **size**: spacing in pixels between lines.
 
-- Hug vs fixed: 'hug' disables width/height (size follows content). 'fixed' enables explicit size.
-- Aspect ratio: when `lockAspectRatio` is true, setting one dimension adjusts the other (unless the other behavior is 'fill').
-- Invalidation: property changes trigger `invalidate(...)` and propagate up/down the hierarchy for recalculation.
-
-## Bindings (dynamic properties)
-
-- Bindings link a source element/property to a target element/property.
-- Use bindings for user-created components or dynamic UI behavior instead of fixed values.
-- Bindings are applied via adapter-level APIs (PropertyBinding). When serializing, include a `bindings` section if applicable.
-
-## Layout model
-
-- Current default: absolute positioning using `position`, `left`, `top`, etc.
-- Goal: responsive design using a flex-like model (analogous to CSS flexbox) for groups/containers.
-- Agents should:
-  - For absolute layouts, set explicit coordinates/sizes or use 'hug' for content-driven sizes.
-  - For future flex layouts, prefer container elements and properties that align children (e.g., justify/align/gap) when available in templates/adapters.
-
-## States & design tokens
-
-- `states` define alternate property sets per element state (e.g., hover, active), applied via `PropertyStates`.
-- Tokens (`tokens: Record<string, any>`) allow themeable values; `getValueFromToken('group.key')` resolves along the parent chain.
-- For HTML/CSS export, prefer tokenized colors, spacing, and typography when available.
-
-## Tool-call recipes (expected JSON commands)
-
-Create or add elements
+- **color**: grid line color.
+### Column Layout Example
 ```json
 {
-  "tool": "add_to_workspace",
-  "args": {
-    "elements": [
-      {
-        "type": "button",
-        "meta": { "origin": "template", "templateRef": { "id": "button-basic", "version": 1, "kind": "primitive" } },
-        "overrides": { "name": "PrimaryCTA" }
-      }
-    ]
+  "type": "column",
+  "count": 12,
+  "gutter": 16,
+  "margin": 24,
+  "width": "auto",
+  "alignment": "center",
+  "color": "#cccccc"
+}
+```
+
+- Divides the frame into vertical columns.
+
+- **count**: number of columns.
+
+- **gutter**: spacing between columns in pixels.
+
+- **margin**: left and right margins.
+
+- **width**: column width (number or "auto").
+
+- **alignment**: "start", "center", or "end".
+
+- **color**: guide color.
+
+### Row Layout Example
+```json
+{
+  "type": "row",
+  "count": 8,
+  "gutter": 12,
+  "margin": 20,
+  "height": "auto",
+  "alignment": "start",
+  "color": "#dddddd"
+}
+```
+
+- Divides the frame into horizontal rows.
+
+- Properties equivalent to column layout, but applied vertically.
+
+### Property Value Examples
+```json
+// Basic device (mobile frame)
+{
+  "name":"Android Compact",
+  "deviceWidth": 375,
+  "deviceHeight": 812,
+  "width":375,
+  "height":912,
+  "left":0,
+  "top":0,
+  "fill":{
+    "type":"solid",
+    "color":"#ffffff",
+    "alpha":1
   }
 }
-```
-
-Add child to a parent
-```json
+// Basic device (mobile frame) with grid layout
 {
-  "tool": "add_to_parent",
-  "args": {
-    "parentId": "uuid",
-    "child": {
-      "type": "image",
-      "properties": {
-        "name": "Logo",
-        "src": { "type": "url", "value": "https://..." }
-      }
-    }
+  "name":"Android Compact",
+  "deviceWidth": 375,
+  "deviceHeight": 812,
+  "width":375,
+  "height":912,
+  "left":0,
+  "top":0,
+  "layoutGrid": {
+    "type": "grid",
+    "size": 8,
+    "color": "#e0e0e0"
   }
 }
-```
 
-Modify existing elements
-```json
+// Device with 12-column layout
 {
-  "tool": "modify_element",
-  "args": {
-    "elements": [
-      {
-        "id": "uuid",
-        "properties": {
-          "widthBehavior": "fixed",
-          "width": 320,
-          "height": 80,
-          "fill": { "type": "solid", "alpha": 1, "color": "#1d4ed8" }
-        }
-      }
-    ]
+  "name":"Desktop",
+  "deviceWidth": 1440,
+  "deviceHeight": 900,
+  "width":1440,
+  "height":900,
+  "left":0,
+  "top":0,
+  "layoutGrid": {
+    "type": "column",
+    "count": 12,
+    "gutter": 24,
+    "margin": 32,
+    "width": "auto",
+    "alignment": "center",
+    "color": "#cccccc"
   }
 }
+
 ```
 
-Deletion
-- Provide the element `id` and indicate deletion via a high-level tool or a specific delete command if available in the backend API.
+## Video Element Properties
 
-## Best practices for the agent
+Video elements extend base element properties with specialized video playback, thumbnail management, and source handling capabilities. They support both direct video files and YouTube embeds with adaptive controls and presentation options.
 
-- Prefer templates (with meta.templateRef) for standard UI patterns; they may instantiate multi-element compositions with correct defaults and states.
-- When using direct element types, set only compatible properties (respect disabled/hidden ones under current behaviors).
-- Use 'hug' when layout should be content-driven; otherwise use 'fixed' with explicit dimensions.
-- Respect constraints (decimals for size/position, opacity 0..100, rotation within [-360..360]).
-- For grouping/composition, use `container` or appropriate layout elements (e.g., stack layouts) as parents.
-- Bindings should be used where dynamic or synchronized behavior between elements is needed.
+### Video Source Properties
 
----
+**videoSource** - `VideoProp` (default: `""`)
+- Primary video source property supporting multiple source types
+- Controls availability of thumbnail and transform properties
+- Automatically detects YouTube URLs for embed handling
+- Core property that determines rendering behavior and controls
 
-This document intentionally omits framework internals and general project architecture to keep RAG focused on design elements and their JSON schemas.
+**Video Source Types:**
 
-## Runtime mapping: templates → runtime types
-
-- When the agent references a toolbox template, prefer setting `meta.templateRef` on the element JSON. The runtime will use `meta.templateRef.id` to find the template and apply the template's defaults and children. Example:
-
-- template usage (primitive):
-
+**Direct Video URLs**
 ```json
 {
-  "type": "button",
-  "meta": { "origin": "template", "templateRef": { "id": "button-basic", "version": 1, "kind": "primitive" } },
-  "overrides": { "name": "PrimaryCTA" }
+  "type": "url",
+  "value": "https://example.com/video.mp4"
 }
 ```
 
-- template usage (composite): the root element should carry the `meta.templateRef` and the runtime will create the contained subtree. Avoid manually including full child objects unless you intend to override or extend the template.
-
-### Common templateId → runtime type guidance
-
-- button-* → runtime type: `button` (primitive)
-- input-* → runtime type: `text-input` (primitive)
-- list-* → runtime type: `list` (composite: generates children)
-- card-* → runtime type: `card` (composite)
-- frame/device templates → runtime type: `device-frame` or `device-root` (runtime-only frame wrappers)
-
-If a template is not available, the agent may provide direct `type` and `properties`; the runtime will treat it as a plain element.
-## Other runtime types
-- container
-- container-layout
-- device
-- workspace
-- path
-- line
-- ellipse
-- group
-- lineConnector
-- shape-rectangle
-- shape-polygon
-- shape-star
-
-All of the types listed above (and the additional types provided by toolbox templates) can be created by users or agents via the flat project contract. When creating `workspace` or `device` nodes, follow the backend contract (for example, required properties such as workspace metadata or device screen dimensions). The deserializer will validate references and emit warnings for missing or orphaned children.
-
-## Special nodes and device elements
-
-- `workspace` — top-level container recorded in the `workspaces` array; agents should reference `workspace.id` when they want to add a root-level element to a workspace via `parentId`.
-
-- `device` — a first-class element that agents or users can create. A `device` element carries properties (screen size, safe-area, orientation, display/layout defaults) and its `type` and `properties` determine how its subtree is rendered. Treat `device` as a normal element in the flat payloads: it may be created, moved, or deleted by agents.
-
-- `device-frame`, `device-root` — optional wrapper nodes used by the app for device preview or export flows. Agents do not need to create these wrappers unless specifically instructed by the backend contract.
-
-- `group`, `container`, `stack` — layout containers; agents may create container elements (for example `container-layout` or `container`) to group children and to apply layout properties.
-
-Agents are allowed to create `device` and `container-layout` elements. When creating containers, prefer the `container-layout` type which can switch its internal layout mode via a `layout` or `display` property (see "Container strategy" above).
-
-### Examples: creating a `device` element
-
-- Minimal device element (single element):
-
+**Youtube Videos**
 ```json
 {
-  "id": "device-1",
-  "type": "device",
-  "properties": {
-    "name": "iPhone 16 Preview",
-    "width": 393,
-    "height": 852,
-    "orientation": "portrait",
-    "safeArea": { "top": 44, "bottom": 34, "left": 0, "right": 0 },
-    "layoutDefaults": { "display": "flex", "flexDirection": "column" }
+  "type": "url", 
+  "value": "https://www.youtube.com/watch?v=VIDEO_ID"
+}
+```
+### Source Control Properties
+**sourceType** - select (default: "url")
+
+- Controls video source input method
+- url: Direct URL input for video sources
+- file: Local file selection (if supported)
+- Changes videoSource property label dynamically
+- Determines input interface for video source
+
+### Presentation Properties
+
+**thumbnail** - image (default: "")
+
+Poster image displayed before video plays
+Used as fallback when video is loading
+Disabled automatically for YouTube videos
+Standard image property supporting various formats
+Enhances user experience and loading states
+
+**transformType** - select (default: "cover")
+
+Controls how video content fits within element bounds
+Based on CSS object-fit property
+Disabled automatically for YouTube videos
+Affects video aspect ratio and cropping behavior
+
+**Transform Type Options**:
+
+cover: Video scaled to cover entire element (may crop)
+contain: Video scaled to fit within element (may letterbox)
+crop: 
+tile:
+
+### Property value example
+```json
+// Standard MP4 video with custom thumbnail
+{
+  "videoSource": {
+    "type": "url",
+    "value": "https://example.com/demo.mp4"
   },
-  "children": []
+  "thumbnail": "https://example.com/poster.jpg",
+  "transformType": "cover",
+  "sourceType": "url"
 }
-```
 
-- Device with a container child (device as workspace content root):
-
-```json
+// YouTube video (auto-detected)
 {
-  "id": "device-2",
-  "type": "device",
-  "properties": {
-    "name": "Android Medium",
-    "width": 700,
-    "height": 840,
-    "orientation": "portrait",
-    "layoutDefaults": { "display": "absolute" }
+  "videoSource": {
+    "type": "url", 
+    "value": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
   },
-  "children": ["container-1"]
+  "sourceType": "url"
+  // thumbnail and transformType automatically disabled
 }
-```
 
-### Example: creating a `workspace` plus a `device` in a bulk payload
-
-- The client typically sends a flat payload with a `parentId` (workspace id or other parent) and an `elements` array. To create a workspace and device together the backend contract may accept workspaces in the `workspaces` array and elements in `elements`.
-
-Example (bulk create where the workspace already exists and we add a device as a root element):
-
-```json
+// Video with contain scaling
 {
-  "parentId": "workspace-123",
-  "elements": [
-    {
-      "id": "device-3",
-      "type": "device",
-      "properties": {
-        "name": "MacBook Air Preview",
-        "width": 1280,
-        "height": 832,
-        "orientation": "landscape",
-        "layoutDefaults": { "display": "flex", "flexDirection": "column" }
-      },
-      "parentId": "workspace-123",
-      "children": []
-    }
-  ]
-}
-```
-
-- If the payload must create a new workspace object itself, include the workspace in the project `workspaces` array and reference its `id` from element `parentId`.
-
-```json
-{
-  "workspaces": [
-    { "id": "workspace-456", "name": "Mobile Screen", "rootElements": ["device-4"] }
-  ],
-  "elements": {
-    "device-4": {
-      "id": "device-4",
-      "type": "device",
-      "properties": { "name": "iPhone SE", "width": 320, "height": 568 },
-      "parentId": "workspace-456",
-      "children": []
-    }
-  }
-}
-```
-
-Notes:
-- Required fields depend on backend contract; at minimum provide `id`, `type`, `properties` (width/height or templateRef) and `parentId` when attaching to a workspace or parent element.
-- Use `layoutDefaults` or `properties.display` to set whether a device subtree uses `flex` or `absolute` by default.
-
-### Example: `container-layout` with flex properties
-
-- The `container-layout` adapter defaults to `layout: "flex"` and has properties for direction/spacing/alignment. Example showing a horizontal flex row with centered children and a gap:
-
-```json
-{
-  "id": "container-1",
-  "type": "container-layout",
-  "properties": {
-    "name": "Header Row",
-    "layout": "flex",
-    "direction": "horizontal",        // high-level direction option (horizontal|vertical|grid)
-    "flexDirection": "row",          // explicit flex axis (row|column)
-    "justifyContent": "center",      // start|center|end|space-between|space-around
-    "alignItems": "center",          // start|center|end|stretch
-    "gap": 16,                         // uniform gap
-    "gapX": 16,                        // optional X gap
-    "gapY": 8,                         // optional Y gap
-    "spacingType": "fixed",          // fixed | auto
-    "widthBehavior": "hug",
-    "heightBehavior": "hug"
+  "videoSource": {
+    "type": "url",
+    "value": "/local/video.webm"
   },
-  "children": ["logo-1", "nav-1", "actions-1"]
+  "thumbnail": "/local/poster.png",
+  "transformType": "contain",
+  "sourceType": "file"
 }
-```
 
-- Child examples (simple text and image elements):
-
-```json
+// Video with no poster (loading state)
 {
-  "id": "logo-1",
-  "type": "image",
-  "properties": { "name": "Logo", "width": 120, "height": 32 },
-  "parentId": "container-1"
-}
-{
-  "id": "nav-1",
-  "type": "text",
-  "properties": { "name": "Navigation", "text": "Home · Products · About" },
-  "parentId": "container-1"
-}
-{
-  "id": "actions-1",
-  "type": "container-layout",
-  "properties": { "layout": "flex", "direction": "horizontal", "gap": 8 },
-  "parentId": "container-1",
-  "children": ["btn-1","btn-2"]
-}
-```
-
-- Notes on property names:
-  - Some adapters expose both `direction` (stack helper) and `flexDirection` (explicit CSS axis). Use whichever your integration expects; the runtime maps these to internal layout behavior.
-  - `gap` is a shorthand; `gapX`/`gapY` allow asymmetric spacing.
-  - `layoutAlign` is a quick-alignment helper that sets both `justifyContent` and `alignItems` together. Available values:
-
-    - `top-left` (Top Left)
-    - `top-center` (Top Center)
-    - `top-right` (Top Right)
-    - `middle-left` (Middle Left)
-    - `middle-center` (Middle Center)
-    - `middle-right` (Middle Right)
-    - `bottom-left` (Bottom Left)
-    - `bottom-center` (Bottom Center)
-    - `bottom-right` (Bottom Right)
-
-    Using `layoutAlign` avoids configuring `alignItems` and `justifyContent` separately when you want a common alignment preset. Example:
-
-```json
-{
-  "properties": { "layout": "flex", "layoutAlign": "middle-center" }
-}
-```
-
-## Flat bulk payloads (preferred for composite creates)
-
-- The client and backend exchange a flat project contract. When creating multi-node compositions (templates or deep groups), agents should prepare a flat subtree array and send it to the backend as a bulk payload.
-
-Example bulk create payload the client will send to the backend:
-
-```json
-{
-  "parentId": "workspace-or-parent-uuid",
-  "elements": [
-    { "id": "root-uuid", "type": "card", "meta": { "origin": "template", "templateRef": { "id": "card-basic" } }, "properties": { "name": "Card A" }, "children": ["child-1","child-2"] },
-    { "id": "child-1", "type": "image", "properties": { "src": "https://..." }, "parentId": "root-uuid", "children": [] },
-    { "id": "child-2", "type": "text", "properties": { "text": "Hello" }, "parentId": "root-uuid" }
-  ]
-}
-```
-
-- Note: elements can be provided as an array or as a map keyed by `id`. The deserializer will first create adapters in dependency order and then attach parent-child relationships using `parentId` and `children` arrays.
-
-## Agent rules & best practices (summary)
-
-- Prefer templates for standard UI patterns. Use `meta.templateRef` to reference the toolbox template; let the runtime apply template children and defaults.
-- For composite creates, produce a flat elements array and send it as `{ parentId, elements: [...] }` so the backend can apply the whole subtree atomically.
-- When producing plain elements (not templates), include `parentId` for where the root belongs and `children` as id arrays (children objects are optional if they are also present in `elements`).
-- Keep element properties minimal: only override what must change from the template/runtime defaults. Use `propsMode: "diff"` when applicable if you have the template context.
-- Validate that every child id referenced exists in the `elements` array or in the server-side store. If a referenced id is missing, the importer will emit a warning and treat the child as orphaned.
-- When creating `workspace` or `device` nodes, ensure required fields are present (workspace metadata, device size/orientation, etc.) and respect the backend API contract; otherwise the importer may emit validation warnings.
-
-## Examples: agent workflows
-
-- Create a template-based card inside a workspace:
-  - Agent returns a single root element with `meta.templateRef` set to the card template; or the agent returns a bulk subtree with root+children and the client will send `{ parentId: workspaceId, elements: [...] }`.
-
-- Add a single child to an existing parent:
-
-```json
-{
-  "parentId": "existing-parent-uuid",
-  "elements": [
-    { "id": "new-img-uuid", "type": "image", "properties": { "src": "https://..." }, "parentId": "existing-parent-uuid", "children": [] }
-  ]
+  "videoSource": {
+    "type": "url",
+    "value": "https://cdn.example.com/video.mp4"
+  },
+  "thumbnail": "",
+  "transformType": "cover"
 }
 ```
